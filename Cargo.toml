@@ -1,0 +1,24 @@
+[package]
+name = "rmips"
+version = "0.1.0"
+authors = ["starfleetcadet75 <starfleetcadet75@gmail.com>"]
+description = "MIPS R3000 virtual machine simulator"
+keywords = [
+    "emulator",
+    "mips",
+]
+readme = "README.md"
+license-file = "LICENSE.md"
+repository = "https://github.com/starfleetcadet75/rmips"
+edition = "2018"
+
+[dependencies]
+log = "0.4.11"
+gdbstub = "0.2.0"
+bitflags = "1.2.1"
+capstone = "0.7.0"
+byteorder = "1.3.4"
+simplelog = "0.8.0"
+clap = "3.0.0-beta.1"
+human-panic = "1.0.3"
+error-chain = "0.12.2"
