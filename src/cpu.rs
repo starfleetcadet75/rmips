@@ -1,9 +1,8 @@
 use crate::cpzero::CPZero;
 use crate::mapper::Mapper;
-use crate::util::constants::ExceptionCode;
-use crate::util::constants::{NUM_GPR, REG_ZERO};
+use crate::util::constants::{ExceptionCode, NUM_GPR, REG_ZERO};
 use crate::util::error::RmipsResult;
-use capstone::Capstone;
+use capstone::prelude::*;
 use log::{error, warn};
 
 macro_rules! opcode {
@@ -64,11 +63,11 @@ macro_rules! jumptarget {
 #[derive(Debug, PartialEq)]
 pub enum DelayState {
     /// No delay slot handling needs to occur
-    NORMAL,
+    Normal,
     /// The last instruction caused a branch to be taken
-    DELAYING,
+    Delaying,
     /// The last instruction was executed in a delay slot
-    DELAYSLOT,
+    Delayslot,
 }
 
 pub struct CPU {
@@ -84,43 +83,39 @@ pub struct CPU {
     pub low: u32,
     /// Indicates whether the current instruction is in a delay slot
     pub delay_state: DelayState,
-    /// Stores the saved target address for a delayed branch
+    /// Saved target address for delayed branches
     pub delay_pc: u32,
-    pub mapper: Mapper,
+    /// The System Control Coprocessor
     pub cpzero: CPZero,
     /// Capstone instance for disassembly
     disassembler: Option<Capstone>,
 }
 
 impl CPU {
-    pub fn new(mapper: Mapper, disassembler: Option<Capstone>) -> CPU {
+    pub fn new(enable_disassembler: bool) -> CPU {
+        // Create an instance of Capstone to use as a disassembler if required
+        let disassembler = match enable_disassembler {
+            true => Some(
+                Capstone::new()
+                    .mips()
+                    .mode(arch::mips::ArchMode::Mips32R6)
+                    .detail(true)
+                    .build()
+                    .expect("Capstone failed to initialize"),
+            ),
+            false => None,
+        };
+
         CPU {
             pc: 0,
             reg: [0; NUM_GPR],
             instruction: 0,
             high: 0,
             low: 0,
-            delay_state: DelayState::NORMAL,
+            delay_state: DelayState::Normal,
             delay_pc: 0,
-            mapper,
             cpzero: CPZero::new(),
             disassembler,
-        }
-    }
-
-    #[cfg(test)]
-    pub fn new_test() -> CPU {
-        CPU {
-            pc: 0,
-            reg: [0; NUM_GPR],
-            instruction: 0,
-            high: 0,
-            low: 0,
-            delay_state: DelayState::NORMAL,
-            delay_pc: 0,
-            mapper: Mapper::new(),
-            cpzero: CPZero::new(),
-            disassembler: None,
         }
     }
 
@@ -132,12 +127,12 @@ impl CPU {
     }
 
     /// Decodes and executes the next instruction according to the value in the program counter
-    pub fn step(&mut self) -> RmipsResult<()> {
+    pub fn step(&mut self, memory: &mut Mapper) -> RmipsResult<()> {
         // Get the physical address of the next instruction
         let phys_pc = self.cpzero.translate(self.pc);
 
         // Fetch the next instruction from memory
-        self.instruction = self.mapper.fetch_word(phys_pc)?;
+        self.instruction = memory.fetch_word(phys_pc)?;
 
         // Disassemble the instruction if enabled by the user
         if let Some(disassembler) = &self.disassembler {
@@ -145,7 +140,7 @@ impl CPU {
             if let Ok(instr) = disassembler.disasm_count(&code, self.pc.into(), 1) {
                 // Will always be one instruction
                 for i in instr.iter() {
-                    println!(
+                    eprintln!(
                         "PC=0x{:08x} [{:08x}]\t{:08x}  {} {}",
                         self.pc,
                         phys_pc,
@@ -155,7 +150,7 @@ impl CPU {
                     );
                 }
             } else {
-                println!(
+                eprintln!(
                     "PC=0x{:08x} [{:08x}]\t{:08x}  Disassembly Failed",
                     self.pc, phys_pc, self.instruction,
                 );
@@ -242,17 +237,17 @@ impl CPU {
             0x11 => self.coprocessor_unimpl(1, instr, self.pc),
             0x12 => self.coprocessor_unimpl(2, instr, self.pc),
             0x13 => self.coprocessor_unimpl(3, instr, self.pc),
-            0x20 => self.lb_emulate(instr)?,
+            0x20 => self.lb_emulate(&memory, instr)?,
             0x21 => self.lh_emulate(instr),
             0x22 => self.lwl_emulate(instr),
-            0x23 => self.lw_emulate(instr)?,
-            0x24 => self.lbu_emulate(instr)?,
+            0x23 => self.lw_emulate(&memory, instr)?,
+            0x24 => self.lbu_emulate(&memory, instr)?,
             0x25 => self.lhu_emulate(instr),
             0x26 => self.lwr_emulate(instr),
-            0x28 => self.sb_emulate(instr),
-            0x29 => self.sh_emulate(instr),
+            0x28 => self.sb_emulate(memory, instr),
+            0x29 => self.sh_emulate(memory, instr),
             0x2a => self.swl_emulate(instr),
-            0x2b => self.sw_emulate(instr),
+            0x2b => self.sw_emulate(memory, instr),
             0x2e => self.swr_emulate(instr),
             0x31 => self.lwc1_emulate(instr),
             0x32 => self.lwc2_emulate(instr),
@@ -268,19 +263,19 @@ impl CPU {
         self.reg[REG_ZERO] = 0;
 
         // Update the program counter
-        // DelayState tracks whether the current instruction should be executed from the delay slot
+        // `DelayState` tracks whether the current instruction should be executed from the delay slot
         match self.delay_state {
             // Increment the program counter by 4 for normal instructions
-            DelayState::NORMAL => self.pc += 4,
+            DelayState::Normal => self.pc = self.pc.wrapping_add(4),
             // The next instruction to be executed is in the delay slot
-            DelayState::DELAYING => {
-                self.pc += 4;
-                self.delay_state = DelayState::DELAYSLOT;
+            DelayState::Delaying => {
+                self.pc = self.pc.wrapping_add(4);
+                self.delay_state = DelayState::Delayslot;
             }
             // Current instruction was executed from the delay slot and the branch should now occur
-            DelayState::DELAYSLOT => {
+            DelayState::Delayslot => {
                 self.pc = self.delay_pc;
-                self.delay_state = DelayState::NORMAL;
+                self.delay_state = DelayState::Normal;
             }
         }
         Ok(())

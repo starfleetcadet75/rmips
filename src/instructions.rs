@@ -1,5 +1,6 @@
 //! This module contains the emulation helper functions that are used by the `CPU` for executing instructions.
 use crate::cpu::{DelayState, CPU};
+use crate::mapper::Mapper;
 use crate::util::constants::ExceptionCode;
 use crate::util::constants::REG_RA;
 use crate::util::error::RmipsResult;
@@ -276,13 +277,13 @@ impl CPU {
     }
 
     /// Load byte
-    pub fn lb_emulate(&mut self, instr: u32) -> RmipsResult<()> {
+    pub fn lb_emulate(&mut self, memory: &Mapper, instr: u32) -> RmipsResult<()> {
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
         let vaddress = base + offset;
 
         let paddress = self.cpzero.translate(vaddress);
-        let data = self.mapper.fetch_byte(paddress)?;
+        let data = memory.fetch_byte(paddress)?;
         self.reg[rt!(instr)] = data as i32 as u32; // Sign-extend the byte
         Ok(())
     }
@@ -298,7 +299,7 @@ impl CPU {
     }
 
     /// Load word
-    pub fn lw_emulate(&mut self, instr: u32) -> RmipsResult<()> {
+    pub fn lw_emulate(&mut self, memory: &Mapper, instr: u32) -> RmipsResult<()> {
         // Calculate the virtual address
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
@@ -310,20 +311,20 @@ impl CPU {
             self.exception(ExceptionCode::LoadAddressError);
         } else {
             let paddress = self.cpzero.translate(vaddress);
-            let data = self.mapper.fetch_word(paddress)?;
+            let data = memory.fetch_word(paddress)?;
             self.reg[rt!(instr)] = data;
         }
         Ok(())
     }
 
     /// Load byte unsigned
-    pub fn lbu_emulate(&mut self, instr: u32) -> RmipsResult<()> {
+    pub fn lbu_emulate(&mut self, memory: &Mapper, instr: u32) -> RmipsResult<()> {
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
         let vaddress = base + offset;
 
         let paddress = self.cpzero.translate(vaddress);
-        let data = self.mapper.fetch_byte(paddress)? & 0xff;
+        let data = memory.fetch_byte(paddress)? & 0xff;
         self.reg[rt!(instr)] = data.into(); // Zero-extend the byte
         Ok(())
     }
@@ -339,17 +340,17 @@ impl CPU {
     }
 
     /// Store byte
-    pub fn sb_emulate(&mut self, instr: u32) {
+    pub fn sb_emulate(&mut self, memory: &mut Mapper, instr: u32) {
         let data = self.reg[rt!(instr)] as u8;
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
         let vaddress = base + offset;
         let paddress = self.cpzero.translate(vaddress);
-        self.mapper.store_byte(paddress, data);
+        memory.store_byte(paddress, data);
     }
 
     /// Store halfword
-    pub fn sh_emulate(&mut self, instr: u32) {
+    pub fn sh_emulate(&mut self, memory: &mut Mapper, instr: u32) {
         let data = self.reg[rt!(instr)] as u16;
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
@@ -361,7 +362,7 @@ impl CPU {
             self.exception(ExceptionCode::StoreAddressError);
         } else {
             let paddress = self.cpzero.translate(vaddress);
-            self.mapper.store_halfword(paddress, data);
+            memory.store_halfword(paddress, data);
         }
     }
 
@@ -371,7 +372,7 @@ impl CPU {
     }
 
     /// Store word
-    pub fn sw_emulate(&mut self, instr: u32) {
+    pub fn sw_emulate(&mut self, memory: &mut Mapper, instr: u32) {
         let data = self.reg[rt!(instr)];
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
@@ -383,7 +384,7 @@ impl CPU {
             self.exception(ExceptionCode::StoreAddressError);
         } else {
             let paddress = self.cpzero.translate(vaddress);
-            self.mapper.store_word(paddress, data);
+            memory.store_word(paddress, data);
         }
     }
 
@@ -469,7 +470,7 @@ impl CPU {
     }
 
     fn control_transfer(&mut self, dest: u32) {
-        self.delay_state = DelayState::DELAYING;
+        self.delay_state = DelayState::Delaying;
         self.delay_pc = dest;
     }
 
@@ -494,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_sll_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00052140;
         cpu.reg[rt!(instr)] = 42;
         cpu.sll_emulate(instr);
@@ -503,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_srl_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00052142;
         cpu.reg[rt!(instr)] = 42;
         cpu.srl_emulate(instr);
@@ -512,7 +513,7 @@ mod tests {
 
     #[test]
     fn test_srlv_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00a42006;
         cpu.reg[rt!(instr)] = 0xffff;
         cpu.reg[rs!(instr)] = 1;
@@ -534,7 +535,7 @@ mod tests {
 
     #[test]
     fn test_jalr_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x0040f809;
         let pc = 0xbfc019b0;
 
@@ -542,7 +543,7 @@ mod tests {
         cpu.jalr_emulate(instr, pc);
 
         assert_eq!(cpu.delay_pc, 0xbfc019b8);
-        assert_eq!(cpu.delay_state, DelayState::DELAYING)
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
     }
 
     #[test]
@@ -577,7 +578,7 @@ mod tests {
 
     #[test]
     fn test_add_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00a62020;
         cpu.reg[rt!(instr)] = 0xffff_0fff;
         cpu.reg[rs!(instr)] = 0x0001_0000;
@@ -593,7 +594,7 @@ mod tests {
 
     #[test]
     fn test_addu_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00a62021;
         cpu.reg[rt!(instr)] = 0xffff_0fff;
         cpu.reg[rs!(instr)] = 0x0001_0000;
@@ -603,7 +604,7 @@ mod tests {
 
     #[test]
     fn test_sub_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00a62022;
         cpu.reg[rt!(instr)] = 40;
         cpu.reg[rs!(instr)] = 42;
@@ -619,7 +620,7 @@ mod tests {
 
     #[test]
     fn test_subu_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00a62023;
         cpu.reg[rt!(instr)] = 1;
         cpu.reg[rs!(instr)] = 0;
@@ -629,7 +630,7 @@ mod tests {
 
     #[test]
     fn test_and_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00852024;
         cpu.reg[rt!(instr)] = 42;
         cpu.reg[rs!(instr)] = 13;
@@ -639,7 +640,7 @@ mod tests {
 
     #[test]
     fn test_or_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00852024;
         cpu.reg[rt!(instr)] = 42;
         cpu.reg[rs!(instr)] = 13;
@@ -649,7 +650,7 @@ mod tests {
 
     #[test]
     fn test_xor_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00a62026;
         cpu.reg[rt!(instr)] = 4242;
         cpu.reg[rs!(instr)] = 88;
@@ -659,7 +660,7 @@ mod tests {
 
     #[test]
     fn test_nor_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x00852027;
         cpu.reg[rt!(instr)] = 42;
         cpu.reg[rs!(instr)] = 13;
@@ -693,7 +694,7 @@ mod tests {
 
     #[test]
     fn test_beq_emulate_branches() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x10530005;
         let pc = 0xbfc006ec;
 
@@ -702,12 +703,12 @@ mod tests {
         cpu.beq_emulate(instr, pc);
 
         assert_eq!(cpu.delay_pc, 0xbfc00704);
-        assert_eq!(cpu.delay_state, DelayState::DELAYING)
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
     }
 
     #[test]
     fn test_beq_emulate_not_branches() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x10530005;
         let pc = 0xbfc006ec;
 
@@ -716,12 +717,12 @@ mod tests {
         cpu.beq_emulate(instr, pc);
 
         assert_eq!(cpu.delay_pc, 0);
-        assert_eq!(cpu.delay_state, DelayState::NORMAL)
+        assert_eq!(cpu.delay_state, DelayState::Normal)
     }
 
     #[test]
     fn test_bne_emulate_branches() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x10530005;
         let pc = 0xbfc006ec;
 
@@ -730,12 +731,12 @@ mod tests {
         cpu.bne_emulate(instr, pc);
 
         assert_eq!(cpu.delay_pc, 0xbfc00704);
-        assert_eq!(cpu.delay_state, DelayState::DELAYING)
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
     }
 
     #[test]
     fn test_bne_emulate_not_branches() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x10530005;
         let pc = 0xbfc006ec;
 
@@ -744,7 +745,7 @@ mod tests {
         cpu.bne_emulate(instr, pc);
 
         assert_eq!(cpu.delay_pc, 0);
-        assert_eq!(cpu.delay_state, DelayState::NORMAL)
+        assert_eq!(cpu.delay_state, DelayState::Normal)
     }
 
     #[test]
@@ -755,7 +756,7 @@ mod tests {
 
     #[test]
     fn test_addi_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x20840080;
         cpu.reg[rs!(instr)] = 42;
         cpu.addi_emulate(instr);
@@ -770,7 +771,7 @@ mod tests {
 
     #[test]
     fn test_addiu_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x248400ff;
         cpu.reg[rs!(instr)] = 42;
         cpu.addiu_emulate(instr);
@@ -779,7 +780,7 @@ mod tests {
 
     #[test]
     fn test_andi_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x30a40fff;
         cpu.reg[rs!(instr)] = 0x0110;
         cpu.andi_emulate(instr);
@@ -788,7 +789,7 @@ mod tests {
 
     #[test]
     fn test_ori_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x34a41001;
         cpu.reg[rs!(instr)] = 0x0110;
         cpu.ori_emulate(instr);
@@ -797,7 +798,7 @@ mod tests {
 
     #[test]
     fn test_xori_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x38a44321;
         cpu.reg[rs!(instr)] = 0x1234;
         cpu.xori_emulate(instr);
@@ -806,7 +807,7 @@ mod tests {
 
     #[test]
     fn test_lui_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         let instr = 0x3c040064;
         cpu.lui_emulate(instr);
         assert_eq!(cpu.reg[REG_A0], 0x0064_0000);
@@ -868,10 +869,10 @@ mod tests {
 
     #[test]
     fn test_j_emulate() {
-        let mut cpu = CPU::new_test();
+        let mut cpu = CPU::new(false);
         cpu.j_emulate(0xbf00100, 0xbfc00000);
         assert_eq!(cpu.delay_pc, 0xbfc00400);
-        assert_eq!(cpu.delay_state, DelayState::DELAYING)
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
     }
 
     #[test]

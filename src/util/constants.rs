@@ -57,7 +57,7 @@ pub const REG_RA: usize = 31;
 /// Number of general-purpose registers in the processor
 pub const NUM_GPR: usize = 32;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ExceptionCode {
     Interrupt = 0,
     TlbMod = 1,

@@ -45,7 +45,7 @@ fn run() -> RmipsResult<()> {
     let opts = Opts::parse();
     setup_logger(&opts);
 
-    let mut emulator = Emulator::new(opts);
+    let mut emulator = Emulator::new(opts)?;
     emulator.run()
 }
 

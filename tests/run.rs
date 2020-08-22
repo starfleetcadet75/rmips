@@ -1,17 +1,17 @@
 use rmips::emulator::Emulator;
+use rmips::util::error::RmipsResult;
 use rmips::util::opts::Opts;
 
-// TODO: Addition of more debugging support should make it easier
-// to query CPU state and test the value of things like the registers
-
 #[test]
-fn run_emptymain_program() {
-    let testfile = String::from("./build/emptymain.rom");
+fn run_emptymain_program() -> RmipsResult<()> {
+    let testfile = String::from("./tests/build/emptymain.rom");
     let mut opts = Opts::new(testfile);
     opts.instrdump = true;
 
-    let mut emulator = Emulator::new(opts);
+    let mut emulator = Emulator::new(opts)?;
     let result = emulator.run();
 
     assert_eq!(result.is_ok(), true);
+    assert_eq!(emulator.cpu.pc, 0xbfc00320);
+    Ok(())
 }

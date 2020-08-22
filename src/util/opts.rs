@@ -14,6 +14,9 @@ pub struct Opts {
     /// Size of the virtual CPU's physical memory in bytes.
     #[clap(short, long, default_value = "1048576")]
     pub memsize: usize,
+    /// Enable GDB stub for debugging.
+    #[clap(short, long)]
+    pub debug: bool,
     /// Disassemble and print instructions as they are executed.
     #[clap(long)]
     pub instrdump: bool,
@@ -38,6 +41,7 @@ impl Opts {
             verbose: 0,
             loadaddress: 3217031168,
             memsize: 1048576,
+            debug: false,
             instrdump: false,
             dumpcpu: false,
             haltdumpcpu: false,

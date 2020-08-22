@@ -153,13 +153,13 @@ impl CPZero {
 
     /// Prints the contents of the CP0 registers
     pub fn dump_regs(&self) {
-        println!("CP0 Registers: [");
+        eprintln!("CP0 Registers: [");
         for i in 0..16 {
             print!(" R{:02}={:08x} ", i, self.reg[i]);
             if i % 4 == 1 {
-                println!("");
+                eprintln!("");
             }
         }
-        println!("]");
+        eprintln!("]");
     }
 }

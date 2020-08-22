@@ -24,4 +24,9 @@ SECTIONS {
     }
 
     _end = . ;
+
+    /DISCARD/ :
+    {
+        *(.MIPS.abiflags*)
+    }
 }
