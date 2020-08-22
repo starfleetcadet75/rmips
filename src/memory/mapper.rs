@@ -1,7 +1,7 @@
+use crate::memory::range::Range;
 use crate::util::error::RmipsErrorKind::DuplicateMemoryRange;
 use crate::util::error::RmipsErrorKind::InvalidMemoryAccess;
 use crate::util::error::{RmipsError, RmipsResult};
-use crate::util::range::Range;
 
 pub struct Mapper {
     ranges: Vec<Box<dyn Range>>,

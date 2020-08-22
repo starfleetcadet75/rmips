@@ -1,13 +1,13 @@
-use crate::cpu::CPU;
+use crate::cpu::cpu::CPU;
 use crate::devices::halt_device::{HaltDevice, HALTDEV_BASE_ADDRESS};
-use crate::devices::ram::RAM;
-use crate::devices::rom::ROM;
 use crate::devices::test_device::{TestDevice, TESTDEV_BASE_ADDRESS};
-use crate::mapper::Mapper;
+use crate::memory::mapper::Mapper;
+use crate::memory::ram::RAM;
+use crate::memory::range::Range;
+use crate::memory::rom::ROM;
 use crate::util::constants::KSEG1_CONST_TRANSLATION;
 use crate::util::error::RmipsResult;
 use crate::util::opts::Opts;
-use crate::util::range::Range;
 use error_chain::bail;
 use gdbstub::{DisconnectReason, GdbStub};
 use std::net::{TcpListener, TcpStream};

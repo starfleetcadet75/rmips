@@ -1,5 +1,5 @@
-use crate::cpzero::CPZero;
-use crate::mapper::Mapper;
+use crate::cpu::cpzero::CPZero;
+use crate::memory::mapper::Mapper;
 use crate::util::constants::{ExceptionCode, NUM_GPR, REG_ZERO};
 use crate::util::error::RmipsResult;
 use capstone::prelude::*;

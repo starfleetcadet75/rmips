@@ -1,5 +1,5 @@
+use crate::memory::range::Range;
 use crate::util::error::{RmipsResult, RmipsResultExt};
-use crate::util::range::Range;
 use std::fs::File;
 use std::io::Read;
 

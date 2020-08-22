@@ -1,4 +1,4 @@
-use crate::util::range::Range;
+use crate::memory::range::Range;
 
 pub const TESTDEV_BASE_ADDRESS: u32 = 0x0201_0000;
 

@@ -1,4 +1,4 @@
-use crate::util::range::Range;
+use crate::memory::range::Range;
 
 /// Default physical address for the halt device.
 pub const HALTDEV_BASE_ADDRESS: u32 = 0x01010024;

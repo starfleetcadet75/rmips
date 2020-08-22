@@ -1,4 +1,4 @@
-use crate::util::range::Range;
+use crate::memory::range::Range;
 
 pub struct RAM {
     data: Vec<u8>,

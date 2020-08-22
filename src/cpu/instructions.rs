@@ -1,6 +1,6 @@
 //! This module contains the emulation helper functions that are used by the `CPU` for executing instructions.
-use crate::cpu::{DelayState, CPU};
-use crate::mapper::Mapper;
+use crate::cpu::cpu::{DelayState, CPU};
+use crate::memory::mapper::Mapper;
 use crate::util::constants::ExceptionCode;
 use crate::util::constants::REG_RA;
 use crate::util::error::RmipsResult;
