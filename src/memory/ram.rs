@@ -6,7 +6,7 @@ pub struct RAM {
 }
 
 impl RAM {
-    pub fn new(memsize: usize) -> RAM {
+    pub fn new(memsize: usize) -> Self {
         RAM {
             data: vec![0; memsize],
             base: 0,

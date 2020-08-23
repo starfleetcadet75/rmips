@@ -3,7 +3,7 @@ use crate::cpu::cpu::{DelayState, CPU};
 use crate::memory::mapper::Mapper;
 use crate::util::constants::ExceptionCode;
 use crate::util::constants::REG_RA;
-use crate::util::error::RmipsResult;
+use crate::util::error::RmipsError;
 
 #[allow(unused_variables)]
 impl CPU {
@@ -277,7 +277,7 @@ impl CPU {
     }
 
     /// Load byte
-    pub fn lb_emulate(&mut self, memory: &Mapper, instr: u32) -> RmipsResult<()> {
+    pub fn lb_emulate(&mut self, memory: &Mapper, instr: u32) -> Result<(), RmipsError> {
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
         let vaddress = base + offset;
@@ -299,7 +299,7 @@ impl CPU {
     }
 
     /// Load word
-    pub fn lw_emulate(&mut self, memory: &Mapper, instr: u32) -> RmipsResult<()> {
+    pub fn lw_emulate(&mut self, memory: &Mapper, instr: u32) -> Result<(), RmipsError> {
         // Calculate the virtual address
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
@@ -318,7 +318,7 @@ impl CPU {
     }
 
     /// Load byte unsigned
-    pub fn lbu_emulate(&mut self, memory: &Mapper, instr: u32) -> RmipsResult<()> {
+    pub fn lbu_emulate(&mut self, memory: &Mapper, instr: u32) -> Result<(), RmipsError> {
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
         let vaddress = base + offset;

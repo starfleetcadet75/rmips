@@ -15,7 +15,7 @@ pub struct HaltDevice {
 }
 
 impl HaltDevice {
-    pub fn new() -> HaltDevice {
+    pub fn new() -> Self {
         HaltDevice {
             data: vec![0; 4],
             base: 0,

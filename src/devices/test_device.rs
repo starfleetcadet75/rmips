@@ -8,7 +8,7 @@ pub struct TestDevice {
 }
 
 impl TestDevice {
-    pub fn new() -> TestDevice {
+    pub fn new() -> Self {
         let memsize = 0x100;
         TestDevice {
             data: vec![0; memsize],

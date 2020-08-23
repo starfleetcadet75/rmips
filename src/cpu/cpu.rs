@@ -1,9 +1,10 @@
 use crate::cpu::cpzero::CPZero;
 use crate::memory::mapper::Mapper;
 use crate::util::constants::{ExceptionCode, NUM_GPR, REG_ZERO};
-use crate::util::error::RmipsResult;
+use crate::util::error::RmipsError;
 use capstone::prelude::*;
 use log::{error, warn};
+use std::fmt;
 
 macro_rules! opcode {
     ($instr:ident) => {
@@ -92,7 +93,7 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new(enable_disassembler: bool) -> CPU {
+    pub fn new(enable_disassembler: bool) -> Self {
         // Create an instance of Capstone to use as a disassembler if required
         let disassembler = match enable_disassembler {
             true => Some(
@@ -127,7 +128,7 @@ impl CPU {
     }
 
     /// Decodes and executes the next instruction according to the value in the program counter
-    pub fn step(&mut self, memory: &mut Mapper) -> RmipsResult<()> {
+    pub fn step(&mut self, memory: &mut Mapper) -> Result<(), RmipsError> {
         // Get the physical address of the next instruction
         let phys_pc = self.cpzero.translate(self.pc);
 
@@ -303,23 +304,24 @@ impl CPU {
 
         self.cpzero.enter_exception(self.pc, exception_code);
     }
+}
 
-    /// Prints the contents of the registers
-    pub fn dump_regs(&self) {
-        let next_epc = 0;
-        print!(
-            "Registers: [\nPC={:08x}  LastInstr={:08x}  HI={:08x}  LO={:08x}\nDelayState={:?}  DelayPC={:08x}  NextEPC={:08x}\n",
-            self.pc, self.instruction, self.high, self.low, self.delay_state, self.delay_pc, next_epc
-        );
-
-        for i in 0..32 {
-            print!(" R{:02}={:08x} ", i, self.reg[i]);
-
-            if i % 5 == 4 {
-                print!("\n");
-            } else if i == 31 {
-                print!("]\n");
-            }
-        }
+impl fmt::Display for CPU {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let res = (1..=31)
+            .map(|r| {
+                format!(
+                    "${:02} = 0x{:08x} {:13}",
+                    r,
+                    self.reg[r],
+                    format!("({})", self.reg[r] as i32)
+                )
+            })
+            .collect::<Vec<_>>()
+            .chunks(4)
+            .map(|chunk| chunk.join(" "))
+            .collect::<Vec<_>>()
+            .join("\n");
+        write!(f, "{} $pc = 0x{:08x}", res, self.pc)
     }
 }

@@ -1,27 +1,25 @@
 use crate::memory::range::Range;
-use crate::util::error::RmipsErrorKind::DuplicateMemoryRange;
-use crate::util::error::RmipsErrorKind::InvalidMemoryAccess;
-use crate::util::error::{RmipsError, RmipsResult};
+use crate::util::error::RmipsError;
 
 pub struct Mapper {
     ranges: Vec<Box<dyn Range>>,
 }
 
 impl Mapper {
-    pub fn new() -> Mapper {
+    pub fn new() -> Self {
         Mapper { ranges: vec![] }
     }
 
     /// Add the given range to the mappings provided it does not overlap with any existing ranges.
-    fn add_range(&mut self, range: Box<dyn Range>) -> RmipsResult<()> {
+    fn add_range(&mut self, range: Box<dyn Range>) -> Result<(), RmipsError> {
         for r in &self.ranges {
             if range.overlaps(&r) {
-                return Err(RmipsError::from(DuplicateMemoryRange(
+                return Err(RmipsError::MemoryMapping(
                     range.get_base(),
                     range.get_extent(),
                     r.get_base(),
                     r.get_extent(),
-                )));
+                ));
             }
         }
         self.ranges.push(range);
@@ -33,7 +31,7 @@ impl Mapper {
         &mut self,
         mut range: Box<dyn Range>,
         paddress: u32,
-    ) -> RmipsResult<()> {
+    ) -> Result<(), RmipsError> {
         range.rebase(paddress);
         self.add_range(range)
     }
@@ -58,29 +56,29 @@ impl Mapper {
         None
     }
 
-    pub fn fetch_word(&self, address: u32) -> RmipsResult<u32> {
+    pub fn fetch_word(&self, address: u32) -> Result<u32, RmipsError> {
         if let Some(range) = self.find_mapping_range(address) {
             let offset = address - range.get_base();
             Ok(range.fetch_word(offset))
         } else {
-            Err(RmipsError::from(InvalidMemoryAccess(address)))
+            Err(RmipsError::InvalidMemoryAccess(address))
         }
     }
 
-    pub fn fetch_halfword(&self, address: u32) -> RmipsResult<u16> {
+    pub fn fetch_halfword(&self, address: u32) -> Result<u16, RmipsError> {
         if let Some(range) = self.find_mapping_range(address) {
             let offset = address - range.get_base();
             Ok(range.fetch_halfword(offset))
         } else {
-            Err(RmipsError::from(InvalidMemoryAccess(address)))
+            Err(RmipsError::InvalidMemoryAccess(address))
         }
     }
 
-    pub fn fetch_byte(&self, address: u32) -> RmipsResult<u8> {
+    pub fn fetch_byte(&self, address: u32) -> Result<u8, RmipsError> {
         if let Some(range) = self.find_mapping_range(address) {
             Ok(range.fetch_byte(address))
         } else {
-            Err(RmipsError::from(InvalidMemoryAccess(address)))
+            Err(RmipsError::InvalidMemoryAccess(address))
         }
     }
 

@@ -1,5 +1,4 @@
 use crate::memory::range::Range;
-use crate::util::error::{RmipsResult, RmipsResultExt};
 use std::fs::File;
 use std::io::Read;
 
@@ -9,13 +8,13 @@ pub struct ROM {
 }
 
 impl ROM {
-    pub fn new(rom_path: &str) -> RmipsResult<ROM> {
-        let mut f = File::open(rom_path).chain_err(|| "Failed to open the ROM file")?;
+    pub fn new(rom_path: &str) -> Self {
+        let mut f = File::open(rom_path).expect("Failed to open ROM file for reading");
         let mut data = Vec::new();
         f.read_to_end(&mut data)
-            .chain_err(|| "Failed to read from ROM file")?;
+            .expect("Failed to read from ROM file");
 
-        Ok(ROM { data, base: 0 })
+        ROM { data, base: 0 }
     }
 }
 

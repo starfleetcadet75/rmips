@@ -4,6 +4,7 @@ use crate::util::constants::{
     KSEG0, KSEG0_CONST_TRANSLATION, KSEG1, KSEG1_CONST_TRANSLATION, KSEG2, KSEG2_TOP,
     KSEG_SELECT_MASK,
 };
+use std::fmt;
 
 // CP0 register names and numbers
 const INDEX: usize = 0;
@@ -69,7 +70,7 @@ pub struct CPZero {
 }
 
 impl CPZero {
-    pub fn new() -> CPZero {
+    pub fn new() -> Self {
         CPZero { reg: [0; NUM_GPR] }
     }
 
@@ -150,16 +151,24 @@ impl CPZero {
     pub fn interrupts_enabled(&self) -> bool {
         self.reg[STATUS] & StatusMask::IEC.bits() == 1
     }
+}
 
-    /// Prints the contents of the CP0 registers
-    pub fn dump_regs(&self) {
-        eprintln!("CP0 Registers: [");
-        for i in 0..16 {
-            print!(" R{:02}={:08x} ", i, self.reg[i]);
-            if i % 4 == 1 {
-                eprintln!("");
-            }
-        }
-        eprintln!("]");
+impl fmt::Display for CPZero {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let res = (1..=31)
+            .map(|r| {
+                format!(
+                    "${:02} = 0x{:08x} {:13}",
+                    r,
+                    self.reg[r],
+                    format!("({})", self.reg[r] as i32)
+                )
+            })
+            .collect::<Vec<_>>()
+            .chunks(4)
+            .map(|chunk| chunk.join(" "))
+            .collect::<Vec<_>>()
+            .join("\n");
+        write!(f, "{}", res)
     }
 }

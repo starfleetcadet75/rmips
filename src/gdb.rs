@@ -1,11 +1,12 @@
 use crate::emulator::{EmulationEvent, Emulator};
+use crate::util::error::RmipsError;
 use gdbstub::arch::mips;
 use gdbstub::{BreakOp, ResumeAction, StopReason, Target, Tid, TidSelector, SINGLE_THREAD_TID};
 use std::ops::Range;
 
 impl Target for Emulator {
     type Arch = mips::Mips;
-    type Error = &'static str;
+    type Error = RmipsError;
 
     fn resume(
         &mut self,
@@ -15,14 +16,14 @@ impl Target for Emulator {
         let (_, action) = actions.next().unwrap();
 
         let event = match action {
-            ResumeAction::Step => match self.step().unwrap() {
+            ResumeAction::Step => match self.step()? {
                 EmulationEvent::Step => return Ok((SINGLE_THREAD_TID, StopReason::DoneStep)),
                 e => e,
             },
             ResumeAction::Continue => {
                 let mut cycles = 0;
                 loop {
-                    let event = self.step().unwrap();
+                    let event = self.step()?;
                     if event != EmulationEvent::Step {
                         break event;
                     }
@@ -76,10 +77,10 @@ impl Target for Emulator {
     fn read_addrs(
         &mut self,
         addrs: Range<u32>,
-        push_byte: &mut dyn FnMut(u8),
+        store_byte: &mut dyn FnMut(u8),
     ) -> Result<(), Self::Error> {
         for address in addrs {
-            // push_byte(self.mem.r8(addr))
+            store_byte(self.memory.fetch_byte(address)?)
         }
         Ok(())
     }
