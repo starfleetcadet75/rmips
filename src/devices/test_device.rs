@@ -12,7 +12,7 @@ impl TestDevice {
         let memsize = 0x100;
         TestDevice {
             data: vec![0; memsize],
-            base: 0,
+            base: TESTDEV_BASE_ADDRESS,
         }
     }
 }
@@ -28,9 +28,5 @@ impl Range for TestDevice {
 
     fn get_base(&self) -> u32 {
         self.base
-    }
-
-    fn rebase(&mut self, paddress: u32) {
-        self.base = paddress;
     }
 }

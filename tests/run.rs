@@ -12,6 +12,6 @@ fn run_emptymain_program() -> Result<(), RmipsError> {
     let result = emulator.run();
 
     assert_eq!(result.is_ok(), true);
-    assert_eq!(emulator.cpu.pc, 0xbfc00320);
+    assert_eq!(emulator.cpu.pc, 0xbfc00298);
     Ok(())
 }

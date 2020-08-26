@@ -1,8 +1,7 @@
 //! This module contains the emulation helper functions that are used by the `CPU` for executing instructions.
 use crate::cpu::cpu::{DelayState, CPU};
+use crate::cpu::{ExceptionCode, REG_RA};
 use crate::memory::Memory;
-use crate::util::constants::ExceptionCode;
-use crate::util::constants::REG_RA;
 use crate::util::error::RmipsError;
 
 #[allow(unused_variables)]
@@ -493,7 +492,7 @@ impl CPU {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::constants::REG_A0;
+    use crate::cpu::REG_A0;
 
     #[test]
     fn test_sll_emulate() {

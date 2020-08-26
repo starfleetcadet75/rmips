@@ -14,9 +14,6 @@ pub trait Range {
     /// The first physical address represented.
     fn get_base(&self) -> u32;
 
-    /// Move the base address of this Range of memory.
-    fn rebase(&mut self, paddress: u32);
-
     /// The number of bytes of memory provided.
     fn get_extent(&self) -> usize {
         self.get_data().len()
@@ -127,10 +124,6 @@ mod tests {
 
         fn get_base(&self) -> u32 {
             self.base
-        }
-
-        fn rebase(&mut self, paddress: u32) {
-            self.base = paddress;
         }
     }
 

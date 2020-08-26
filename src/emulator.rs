@@ -1,4 +1,5 @@
 use crate::cpu::cpu::CPU;
+use crate::cpu::KSEG1;
 use crate::devices::halt_device::{HaltDevice, HALTDEV_BASE_ADDRESS};
 use crate::devices::test_device::{TestDevice, TESTDEV_BASE_ADDRESS};
 use crate::memory::mapper::Mapper;
@@ -6,7 +7,6 @@ use crate::memory::monitor::{AccessKind, Monitor};
 use crate::memory::ram::RAM;
 use crate::memory::range::Range;
 use crate::memory::rom::ROM;
-use crate::util::constants::KSEG1_CONST_TRANSLATION;
 use crate::util::error::RmipsError;
 use crate::util::opts::Opts;
 use gdbstub::{DisconnectReason, GdbStub, GdbStubError};
@@ -118,6 +118,7 @@ impl Emulator {
                     eprintln!("{}", self.cpu.cpzero);
                 }
 
+                eprintln!("Executed {} instructions", self.instruction_count);
                 eprintln!("\n*************[ HALT ]*************\n");
                 break;
             }
@@ -161,14 +162,14 @@ impl Emulator {
     fn setup_rom(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
         // Translate the provided virtual load address to a physical address
         let loadaddress = opts.loadaddress;
-        if loadaddress < KSEG1_CONST_TRANSLATION {
+        if loadaddress < KSEG1 {
             panic!("Provided load address must be greater than 0xa0000000");
         }
-        let paddress = loadaddress - KSEG1_CONST_TRANSLATION;
+        let paddress = loadaddress - KSEG1;
 
         // Load the provided ROM file
         let rom_path = &opts.romfile;
-        let rom = ROM::new(rom_path);
+        let rom = ROM::new(rom_path, paddress);
 
         eprintln!(
             "Mapping ROM image ({}, {} words) to physical address 0x{:08x}",
@@ -176,37 +177,41 @@ impl Emulator {
             rom.get_extent() / 4,
             paddress
         );
-        physmem.map_at_physical_address(Box::new(rom), paddress)
+        physmem.add_range(Box::new(rom))
     }
 
     // Create a new RAM module to install at physical address zero
     fn setup_ram(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
-        let ram = RAM::new(opts.memsize);
         let paddress = 0;
+        let ram = RAM::new(opts.memsize, paddress);
 
         eprintln!(
             "Mapping RAM module ({}KB) to physical address 0x{:08x}",
             ram.get_extent() / 1024,
             paddress
         );
-        physmem.map_at_physical_address(Box::new(ram), paddress)
+        physmem.add_range(Box::new(ram))
     }
 
     fn setup_haltdevice(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
         if !opts.nohaltdevice {
             let halt_device = HaltDevice::new();
-            let paddress = HALTDEV_BASE_ADDRESS;
-            eprintln!("Mapping Halt Device to physical address 0x{:08x}", paddress);
-            physmem.map_at_physical_address(Box::new(halt_device), paddress)?;
+            eprintln!(
+                "Mapping Halt Device to physical address 0x{:08x}",
+                HALTDEV_BASE_ADDRESS
+            );
+            physmem.add_range(Box::new(halt_device))?;
         }
         Ok(())
     }
 
     fn setup_testdevice(physmem: &mut Mapper) -> Result<(), RmipsError> {
         let testdev = TestDevice::new();
-        let paddress = TESTDEV_BASE_ADDRESS;
-        eprintln!("Mapping Test Device to physical address 0x{:08x}", paddress);
-        physmem.map_at_physical_address(Box::new(testdev), paddress)
+        eprintln!(
+            "Mapping Test Device to physical address 0x{:08x}",
+            TESTDEV_BASE_ADDRESS
+        );
+        physmem.add_range(Box::new(testdev))
     }
 
     fn wait_for_tcp(port: u16) -> Result<TcpStream, RmipsError> {

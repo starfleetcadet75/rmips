@@ -6,10 +6,10 @@ pub struct RAM {
 }
 
 impl RAM {
-    pub fn new(memsize: usize) -> Self {
+    pub fn new(memsize: usize, base: u32) -> Self {
         RAM {
             data: vec![0; memsize],
-            base: 0,
+            base,
         }
     }
 }
@@ -25,9 +25,5 @@ impl Range for RAM {
 
     fn get_base(&self) -> u32 {
         self.base
-    }
-
-    fn rebase(&mut self, paddress: u32) {
-        self.base = paddress;
     }
 }

@@ -1,13 +1,8 @@
 use crate::memory::range::Range;
 
+// Located at 0xa1010024 in vaddr
 /// Default physical address for the halt device.
 pub const HALTDEV_BASE_ADDRESS: u32 = 0x01010024;
-
-/// Default (KSEG0) address for the halt device
-// const HALT_ADDR: u32 = 0xa1010024;
-
-/// Halt Control register
-// const HALT_CONTROL: u8 = 0x00;
 
 pub struct HaltDevice {
     data: Vec<u8>,
@@ -18,7 +13,7 @@ impl HaltDevice {
     pub fn new() -> Self {
         HaltDevice {
             data: vec![0; 4],
-            base: 0,
+            base: HALTDEV_BASE_ADDRESS,
         }
     }
 }
@@ -34,9 +29,5 @@ impl Range for HaltDevice {
 
     fn get_base(&self) -> u32 {
         self.base
-    }
-
-    fn rebase(&mut self, paddress: u32) {
-        self.base = paddress;
     }
 }

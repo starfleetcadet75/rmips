@@ -8,13 +8,13 @@ pub struct ROM {
 }
 
 impl ROM {
-    pub fn new(rom_path: &str) -> Self {
+    pub fn new(rom_path: &str, base: u32) -> Self {
         let mut f = File::open(rom_path).expect("Failed to open ROM file for reading");
         let mut data = Vec::new();
         f.read_to_end(&mut data)
             .expect("Failed to read from ROM file");
 
-        ROM { data, base: 0 }
+        ROM { data, base }
     }
 }
 
@@ -29,9 +29,5 @@ impl Range for ROM {
 
     fn get_base(&self) -> u32 {
         self.base
-    }
-
-    fn rebase(&mut self, paddress: u32) {
-        self.base = paddress;
     }
 }

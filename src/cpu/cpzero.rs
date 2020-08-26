@@ -1,25 +1,11 @@
-use crate::util::constants::ExceptionCode;
-use crate::util::constants::NUM_GPR;
-use crate::util::constants::{
-    KSEG0, KSEG0_CONST_TRANSLATION, KSEG1, KSEG1_CONST_TRANSLATION, KSEG2, KSEG2_TOP,
-    KSEG_SELECT_MASK,
+use crate::cpu::{
+    ExceptionCode, EPC, KERNEL_SPACE_MASK, KSEG0, KSEG1, KSEG2, KSEG2_TOP, KSEG_SELECT_MASK, KUSEG,
+    NUM_GPR, PRID, STATUS,
 };
 use std::fmt;
 
-// CP0 register names and numbers
-const INDEX: usize = 0;
-const RANDOM: usize = 1;
-const ENTRYLO0: usize = 2;
-const ENTRYLO1: usize = 3;
-/// The Status register contains the operating mode, interrupt enable flag, and diagnostic states
-const STATUS: usize = 12;
-/// Contains the cause of the last exception
-const CAUSE: usize = 13;
-/// Contains the address to return to after handling an exception
-const EPC: usize = 14;
-
 bitflags! {
-    /// Bitmask for extracting fields from the Status register
+    /// Bitmasks for extracting fields from the Status Register (SR)
     struct StatusMask: u32 {
         /// Coprocessor 3 Usable
         const CU3 = 0b10000000_00000000_00000000_00000000;
@@ -57,14 +43,14 @@ bitflags! {
         const KUP = 0b00000000_00000000_00000000_00001000;
         /// Previous Interrupt Enable Status
         const IEP = 0b00000000_00000000_00000000_00000100;
-        /// Current Kernel / User Status
+        /// Current Kernel / User Mode Status (KUc = 0 indicates kernel-mode)
         const KUC = 0b00000000_00000000_00000000_00000010;
         /// Current Interrupt Enable Status
         const IEC = 0b00000000_00000000_00000000_00000001;
     }
 }
 
-/// CP0 is the sytem control coprocessor that handles address translation and exception handling
+/// CP0 is the sytem control coprocessor that handles address translation and exception handling.
 #[derive(Default)]
 pub struct CPZero {
     pub reg: [u32; NUM_GPR],
@@ -75,23 +61,60 @@ impl CPZero {
         Default::default()
     }
 
+    /// Resets the CP0 control registers to their initial state.
+    /// See the IDT R30xx Family Software Reference Manual
+    /// Chapter 7-1 Reset Initialization for details.
     pub fn reset(&mut self) {
+        // Clear registers
         for r in self.reg.iter_mut() {
             *r = 0;
         }
+
+        // Enable bootstrap exception vectors on reset
+        self.reg[STATUS] = self.reg[STATUS] | StatusMask::BEV.bits();
+
+        // Start the processor in kernel-mode
+        self.reg[STATUS] = self.reg[STATUS] & !StatusMask::KUC.bits();
+
+        // Disable interrupts
+        self.reg[STATUS] = self.reg[STATUS] & !StatusMask::IEC.bits();
+
+        // TS is cleared to zero if MMU is present
+        self.reg[STATUS] = self.reg[STATUS] & !StatusMask::TS.bits();
+
+        // Caches are not switched
+        self.reg[STATUS] = self.reg[STATUS] & !StatusMask::SWC.bits();
+
+        // Set processor revision identifier to indicate a MIPS R3000A
+        self.reg[PRID] = 0x230;
     }
 
-    /// Translates a virtual address to a physical address
+    /// Translates a virtual address to a physical address.
     pub fn translate(&self, vaddress: u32) -> u32 {
-        match vaddress & KSEG_SELECT_MASK {
-            KSEG0 => vaddress - KSEG0_CONST_TRANSLATION,
-            KSEG1 => vaddress - KSEG1_CONST_TRANSLATION,
-            KSEG2 | KSEG2_TOP => todo!(),
-            _ => todo!(),
+        if self.kernel_mode() {
+            // Determine which kernel segment the address is located in
+            match vaddress & KSEG_SELECT_MASK {
+                KSEG0 => vaddress - KSEG0,
+                KSEG1 => vaddress - KSEG1,
+                KSEG2 | KSEG2_TOP => self.tlb_translate(KSEG2, vaddress),
+                _ => self.tlb_translate(KUSEG, vaddress),
+            }
+        } else {
+            if vaddress & KERNEL_SPACE_MASK == 1 {
+                // Attempted to access kernel-space while not in kernel mode
+                // Trigger an exception
+                0xffff_ffff
+            } else {
+                self.tlb_translate(KUSEG, vaddress)
+            }
         }
     }
 
-    pub fn enter_exception(&mut self, pc: u32, exception_code: ExceptionCode) {
+    fn tlb_translate(&self, _segment: u32, _vaddress: u32) -> u32 {
+        todo!();
+    }
+
+    pub fn enter_exception(&mut self, pc: u32, _exception_code: ExceptionCode) {
         self.reg[EPC] = pc; // Save the PC in the EPC register
 
         // Disable interrupts
@@ -143,14 +166,14 @@ impl CPZero {
         }
     }
 
-    /// Returns true if the processor is in kernel mode
+    /// Returns true if the processor is in kernel-mode.
     pub fn kernel_mode(&self) -> bool {
-        self.reg[STATUS] & StatusMask::KUC.bits() == 1
+        (self.reg[STATUS] & StatusMask::KUC.bits()) == 0
     }
 
-    /// Returns true if interrupts are currently enabled
+    /// Returns true if interrupts are currently enabled.
     pub fn interrupts_enabled(&self) -> bool {
-        self.reg[STATUS] & StatusMask::IEC.bits() == 1
+        (self.reg[STATUS] & StatusMask::IEC.bits()) == 1
     }
 }
 

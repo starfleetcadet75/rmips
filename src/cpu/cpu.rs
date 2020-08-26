@@ -1,6 +1,6 @@
 use crate::cpu::cpzero::CPZero;
+use crate::cpu::{ExceptionCode, NUM_GPR, REG_ZERO};
 use crate::memory::Memory;
-use crate::util::constants::{ExceptionCode, NUM_GPR, REG_ZERO};
 use crate::util::error::RmipsError;
 use capstone::prelude::*;
 use log::{error, warn};

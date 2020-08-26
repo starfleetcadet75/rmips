@@ -13,7 +13,7 @@ impl Mapper {
     }
 
     /// Add the given range to the mappings provided it does not overlap with any existing ranges.
-    fn add_range(&mut self, range: Box<dyn Range>) -> Result<(), RmipsError> {
+    pub fn add_range(&mut self, range: Box<dyn Range>) -> Result<(), RmipsError> {
         for r in &self.ranges {
             if range.overlaps(&r) {
                 return Err(RmipsError::MemoryMapping(
@@ -26,16 +26,6 @@ impl Mapper {
         }
         self.ranges.push(range);
         Ok(())
-    }
-
-    /// Map a Range object at the given physical address in memory.
-    pub fn map_at_physical_address(
-        &mut self,
-        mut range: Box<dyn Range>,
-        paddress: u32,
-    ) -> Result<(), RmipsError> {
-        range.rebase(paddress);
-        self.add_range(range)
     }
 
     /// Returns the first mapping in the list of memory ranges that contains the given address.
@@ -151,17 +141,13 @@ mod tests {
         fn get_base(&self) -> u32 {
             self.base
         }
-
-        fn rebase(&mut self, paddress: u32) {
-            self.base = paddress;
-        }
     }
 
     fn setup() -> Mapper {
         let mut mem = Mapper::new();
         let paddress = 0x1fc00000;
         let range = TestRange::new(paddress);
-        mem.map_at_physical_address(Box::new(range), paddress)
+        mem.add_range(Box::new(range))
             .expect("Failed to map memory");
         mem
     }
