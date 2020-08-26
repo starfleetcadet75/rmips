@@ -1,4 +1,6 @@
+use crate::util::error::RmipsError;
 use byteorder::{ByteOrder, NativeEndian};
+use std::fmt;
 
 /// Trait for an object that manages a range of mapped memory.
 /// Memory-mapped devices implement this trait.
@@ -21,33 +23,42 @@ pub trait Range {
     }
 
     /// Fetch the word at the given offset into the Range.
-    fn fetch_word(&self, offset: u32) -> u32 {
-        NativeEndian::read_u32(&self.get_data()[offset as usize..])
+    fn fetch_word(&self, offset: u32) -> Result<u32, RmipsError> {
+        let offset = offset - self.get_base();
+        Ok(NativeEndian::read_u32(&self.get_data()[offset as usize..]))
     }
 
     /// Fetch the halfword at the given offset into the Range.
-    fn fetch_halfword(&self, offset: u32) -> u16 {
-        NativeEndian::read_u16(&self.get_data()[offset as usize..])
+    fn fetch_halfword(&self, offset: u32) -> Result<u16, RmipsError> {
+        let offset = offset - self.get_base();
+        Ok(NativeEndian::read_u16(&self.get_data()[offset as usize..]))
     }
 
     /// Fetch the byte at the given offset into the Range.
-    fn fetch_byte(&self, offset: u32) -> u8 {
-        self.get_data()[offset as usize]
+    fn fetch_byte(&self, offset: u32) -> Result<u8, RmipsError> {
+        let offset = offset - self.get_base();
+        Ok(self.get_data()[offset as usize])
     }
 
     /// Store a word at the given offset into the Range.
-    fn store_word(&mut self, offset: u32, data: u32) {
+    fn store_word(&mut self, offset: u32, data: u32) -> Result<(), RmipsError> {
+        let offset = offset - self.get_base();
         NativeEndian::write_u32(&mut self.get_data_mut()[offset as usize..], data);
+        Ok(())
     }
 
     /// Store a halfword at the given offset into the Range.
-    fn store_halfword(&mut self, offset: u32, data: u16) {
+    fn store_halfword(&mut self, offset: u32, data: u16) -> Result<(), RmipsError> {
+        let offset = offset - self.get_base();
         NativeEndian::write_u16(&mut self.get_data_mut()[offset as usize..], data);
+        Ok(())
     }
 
     /// Store a byte at the given offset into the Range.
-    fn store_byte(&mut self, offset: u32, data: u8) {
+    fn store_byte(&mut self, offset: u32, data: u8) -> Result<(), RmipsError> {
+        let offset = offset - self.get_base();
         self.get_data_mut()[offset as usize] = data;
+        Ok(())
     }
 
     /// Returns true if the given address is mapped by this Range.
@@ -74,6 +85,17 @@ pub trait Range {
     }
 }
 
+impl fmt::Display for dyn Range {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Base: 0x{:08x} Size: 0x{:08x}",
+            self.get_base(),
+            self.get_extent()
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,12 +106,12 @@ mod tests {
     }
 
     impl TestRange {
-        fn new() -> Self {
+        fn new(base: u32) -> Self {
             TestRange {
                 data: vec![
                     0xef, 0xbe, 0xad, 0xde, 0xbe, 0xba, 0xfe, 0xca, 0x78, 0x56, 0x34, 0x12,
                 ],
-                base: 0,
+                base,
             }
         }
     }
@@ -113,49 +135,84 @@ mod tests {
     }
 
     #[test]
-    fn test_fetch_word() {
-        let range = TestRange::new();
-        assert_eq!(range.fetch_word(0), 0xdeadbeef);
-        assert_eq!(range.fetch_word(4), 0xcafebabe);
-        assert_eq!(range.fetch_word(8), 0x12345678);
+    fn test_fetch_word() -> Result<(), RmipsError> {
+        let range = TestRange::new(0);
+        assert_eq!(range.fetch_word(0)?, 0xdeadbeef);
+        assert_eq!(range.fetch_word(4)?, 0xcafebabe);
+        assert_eq!(range.fetch_word(8)?, 0x12345678);
+
+        let range = TestRange::new(0x1f00);
+        assert_eq!(range.fetch_word(0x1f00)?, 0xdeadbeef);
+        assert_eq!(range.fetch_word(0x1f04)?, 0xcafebabe);
+        assert_eq!(range.fetch_word(0x1f08)?, 0x12345678);
+        Ok(())
     }
 
     #[test]
-    fn test_fetch_halfword() {
-        let range = TestRange::new();
-        assert_eq!(range.fetch_halfword(0), 0xbeef);
-        assert_eq!(range.fetch_halfword(2), 0xdead);
-        assert_eq!(range.fetch_halfword(4), 0xbabe);
-        assert_eq!(range.fetch_halfword(6), 0xcafe);
+    fn test_fetch_halfword() -> Result<(), RmipsError> {
+        let range = TestRange::new(0);
+        assert_eq!(range.fetch_halfword(0)?, 0xbeef);
+        assert_eq!(range.fetch_halfword(2)?, 0xdead);
+        assert_eq!(range.fetch_halfword(4)?, 0xbabe);
+        assert_eq!(range.fetch_halfword(6)?, 0xcafe);
+
+        let range = TestRange::new(0x1f00);
+        assert_eq!(range.fetch_halfword(0x1f00)?, 0xbeef);
+        assert_eq!(range.fetch_halfword(0x1f02)?, 0xdead);
+        assert_eq!(range.fetch_halfword(0x1f04)?, 0xbabe);
+        assert_eq!(range.fetch_halfword(0x1f06)?, 0xcafe);
+        Ok(())
     }
 
     #[test]
-    fn test_fetch_byte() {
-        let range = TestRange::new();
-        assert_eq!(range.fetch_byte(0), 0xef);
-        assert_eq!(range.fetch_byte(1), 0xbe);
-        assert_eq!(range.fetch_byte(2), 0xad);
-        assert_eq!(range.fetch_byte(3), 0xde);
+    fn test_fetch_byte() -> Result<(), RmipsError> {
+        let range = TestRange::new(0);
+        assert_eq!(range.fetch_byte(0)?, 0xef);
+        assert_eq!(range.fetch_byte(1)?, 0xbe);
+        assert_eq!(range.fetch_byte(2)?, 0xad);
+        assert_eq!(range.fetch_byte(3)?, 0xde);
+
+        let range = TestRange::new(0x1f00);
+        assert_eq!(range.fetch_byte(0x1f00)?, 0xef);
+        assert_eq!(range.fetch_byte(0x1f01)?, 0xbe);
+        assert_eq!(range.fetch_byte(0x1f02)?, 0xad);
+        assert_eq!(range.fetch_byte(0x1f03)?, 0xde);
+        Ok(())
     }
 
     #[test]
-    fn test_store_word() {
-        let mut range = TestRange::new();
-        range.store_word(8, 0x1abcdef0);
-        assert_eq!(range.fetch_word(8), 0x1abcdef0);
+    fn test_store_word() -> Result<(), RmipsError> {
+        let mut range = TestRange::new(0);
+        range.store_word(8, 0x1abcdef0)?;
+        assert_eq!(range.fetch_word(8)?, 0x1abcdef0);
+
+        let mut range = TestRange::new(0x1f00);
+        range.store_word(0x1f08, 0x1abcdef0)?;
+        assert_eq!(range.fetch_word(0x1f08)?, 0x1abcdef0);
+        Ok(())
     }
 
     #[test]
-    fn test_store_halfword() {
-        let mut range = TestRange::new();
-        range.store_word(8, 0xabcd);
-        assert_eq!(range.fetch_word(8), 0xabcd);
+    fn test_store_halfword() -> Result<(), RmipsError> {
+        let mut range = TestRange::new(0);
+        range.store_word(8, 0xabcd)?;
+        assert_eq!(range.fetch_word(8)?, 0xabcd);
+
+        let mut range = TestRange::new(0x1f00);
+        range.store_word(0x1f08, 0xabcd)?;
+        assert_eq!(range.fetch_word(0x1f08)?, 0xabcd);
+        Ok(())
     }
 
     #[test]
-    fn test_store_byte() {
-        let mut range = TestRange::new();
-        range.store_byte(4, 0x42);
-        assert_eq!(range.fetch_byte(4), 0x42);
+    fn test_store_byte() -> Result<(), RmipsError> {
+        let mut range = TestRange::new(0);
+        range.store_byte(4, 0x42)?;
+        assert_eq!(range.fetch_byte(4)?, 0x42);
+
+        let mut range = TestRange::new(0x1f00);
+        range.store_byte(0x1f04, 0x42)?;
+        assert_eq!(range.fetch_byte(0x1f04)?, 0x42);
+        Ok(())
     }
 }

@@ -65,13 +65,14 @@ bitflags! {
 }
 
 /// CP0 is the sytem control coprocessor that handles address translation and exception handling
+#[derive(Default)]
 pub struct CPZero {
     pub reg: [u32; NUM_GPR],
 }
 
 impl CPZero {
     pub fn new() -> Self {
-        CPZero { reg: [0; NUM_GPR] }
+        Default::default()
     }
 
     pub fn reset(&mut self) {

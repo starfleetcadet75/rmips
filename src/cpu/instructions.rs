@@ -1,6 +1,6 @@
 //! This module contains the emulation helper functions that are used by the `CPU` for executing instructions.
 use crate::cpu::cpu::{DelayState, CPU};
-use crate::memory::mapper::Mapper;
+use crate::memory::Memory;
 use crate::util::constants::ExceptionCode;
 use crate::util::constants::REG_RA;
 use crate::util::error::RmipsError;
@@ -277,7 +277,7 @@ impl CPU {
     }
 
     /// Load byte
-    pub fn lb_emulate(&mut self, memory: &Mapper, instr: u32) -> Result<(), RmipsError> {
+    pub fn lb_emulate(&mut self, memory: &mut impl Memory, instr: u32) -> Result<(), RmipsError> {
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
         let vaddress = base + offset;
@@ -299,7 +299,7 @@ impl CPU {
     }
 
     /// Load word
-    pub fn lw_emulate(&mut self, memory: &Mapper, instr: u32) -> Result<(), RmipsError> {
+    pub fn lw_emulate(&mut self, memory: &mut impl Memory, instr: u32) -> Result<(), RmipsError> {
         // Calculate the virtual address
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
@@ -318,7 +318,7 @@ impl CPU {
     }
 
     /// Load byte unsigned
-    pub fn lbu_emulate(&mut self, memory: &Mapper, instr: u32) -> Result<(), RmipsError> {
+    pub fn lbu_emulate(&mut self, memory: &mut impl Memory, instr: u32) -> Result<(), RmipsError> {
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
         let vaddress = base + offset;
@@ -340,17 +340,17 @@ impl CPU {
     }
 
     /// Store byte
-    pub fn sb_emulate(&mut self, memory: &mut Mapper, instr: u32) {
+    pub fn sb_emulate(&mut self, memory: &mut impl Memory, instr: u32) -> Result<(), RmipsError> {
         let data = self.reg[rt!(instr)] as u8;
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
         let vaddress = base + offset;
         let paddress = self.cpzero.translate(vaddress);
-        memory.store_byte(paddress, data);
+        memory.store_byte(paddress, data)
     }
 
     /// Store halfword
-    pub fn sh_emulate(&mut self, memory: &mut Mapper, instr: u32) {
+    pub fn sh_emulate(&mut self, memory: &mut impl Memory, instr: u32) -> Result<(), RmipsError> {
         let data = self.reg[rt!(instr)] as u16;
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
@@ -362,8 +362,9 @@ impl CPU {
             self.exception(ExceptionCode::StoreAddressError);
         } else {
             let paddress = self.cpzero.translate(vaddress);
-            memory.store_halfword(paddress, data);
+            memory.store_halfword(paddress, data)?;
         }
+        Ok(())
     }
 
     /// Store word left
@@ -372,7 +373,7 @@ impl CPU {
     }
 
     /// Store word
-    pub fn sw_emulate(&mut self, memory: &mut Mapper, instr: u32) {
+    pub fn sw_emulate(&mut self, memory: &mut impl Memory, instr: u32) -> Result<(), RmipsError> {
         let data = self.reg[rt!(instr)];
         let base = self.reg[rs!(instr)];
         let offset = simmed!(instr);
@@ -384,8 +385,9 @@ impl CPU {
             self.exception(ExceptionCode::StoreAddressError);
         } else {
             let paddress = self.cpzero.translate(vaddress);
-            memory.store_word(paddress, data);
+            memory.store_word(paddress, data)?;
         }
+        Ok(())
     }
 
     /// Store word right

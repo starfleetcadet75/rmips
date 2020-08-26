@@ -2,6 +2,7 @@ use crate::cpu::cpu::CPU;
 use crate::devices::halt_device::{HaltDevice, HALTDEV_BASE_ADDRESS};
 use crate::devices::test_device::{TestDevice, TESTDEV_BASE_ADDRESS};
 use crate::memory::mapper::Mapper;
+use crate::memory::monitor::{AccessKind, Monitor};
 use crate::memory::ram::RAM;
 use crate::memory::range::Range;
 use crate::memory::rom::ROM;
@@ -16,12 +17,15 @@ pub enum EmulationEvent {
     Step,
     Halted,
     Breakpoint,
+    WatchWrite(u32),
+    WatchRead(u32),
 }
 
 pub struct Emulator {
     pub cpu: CPU,
     pub(crate) memory: Mapper,
     pub(crate) breakpoints: Vec<u32>,
+    pub(crate) watchpoints: Vec<u32>,
     opts: Opts,
     instruction_count: usize,
 }
@@ -46,12 +50,15 @@ impl Emulator {
             cpu,
             memory,
             breakpoints: Vec::new(),
+            watchpoints: Vec::new(),
             opts,
             instruction_count: 0,
         })
     }
 
     pub fn run(&mut self) -> Result<(), RmipsError> {
+        eprintln!("\n*************[ RESET ]*************\n");
+
         if self.opts.debug {
             let connection = Self::wait_for_tcp(9001)?;
             let mut debugger = GdbStub::new(connection);
@@ -68,7 +75,25 @@ impl Emulator {
                 Err(GdbStubError::TargetError(e)) => {
                     eprintln!("GDB target raised a fatal error: {:?}", e);
                 }
-                Err(_) => todo!("Cover other errors"), // return Err(e.into()),
+                Err(GdbStubError::ConnectionRead(..)) => {
+                    eprintln!("GDB connection error while reading request")
+                }
+                Err(GdbStubError::ConnectionWrite(..)) => {
+                    eprintln!("GDB connection error while writing request")
+                }
+                Err(GdbStubError::MissingPacketBuffer) => eprintln!("GDB missing packet buffer"),
+                Err(GdbStubError::PacketBufferOverlow) => {
+                    eprintln!("GDB packet cannot fit in the provided packet buffer")
+                }
+                Err(GdbStubError::PacketParse) => {
+                    eprintln!("GDB could not parse the packet into a valid command")
+                }
+                Err(GdbStubError::PacketUnexpected) => {
+                    eprintln!("GDB client sent an unexpected packet")
+                }
+                Err(GdbStubError::MissingSetCurrentTid) => {
+                    eprintln!("GDB target does not implement set_current_thread")
+                }
             }
         } else {
             self.run_until_halt()?;
@@ -101,7 +126,13 @@ impl Emulator {
     }
 
     pub fn step(&mut self) -> Result<EmulationEvent, RmipsError> {
-        self.cpu.step(&mut self.memory)?;
+        let mut hit_watchpoint = None;
+
+        let mut monitor = Monitor::new(&mut self.memory, &self.watchpoints, |access| {
+            hit_watchpoint = Some(access)
+        });
+
+        self.cpu.step(&mut monitor)?;
         self.instruction_count += 1;
 
         // Dump register states after each instruction if requested
@@ -110,7 +141,15 @@ impl Emulator {
             eprintln!("{}", self.cpu);
         }
 
-        if self.breakpoints.contains(&self.cpu.pc) {
+        if let Some(access) = hit_watchpoint {
+            // TODO: Do we need to set PC back one instruction here?
+            // self.cpu.pc = self.cpu.pc.wrapping_sub(4);
+
+            Ok(match access.kind {
+                AccessKind::Read => EmulationEvent::WatchRead(access.address),
+                AccessKind::Write => EmulationEvent::WatchWrite(access.address),
+            })
+        } else if self.breakpoints.contains(&self.cpu.pc) {
             Ok(EmulationEvent::Breakpoint)
         } else if self.instruction_count == 40 {
             Ok(EmulationEvent::Halted)

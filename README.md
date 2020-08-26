@@ -1,6 +1,6 @@
 # RMIPS
 
-[![Build Status](https://travis-ci.org/starfleetcadet75/rmips.svg?branch=master)](https://travis-ci.org/starfleetcadet75/rmips)
+[![Lines of Code](https://tokei.rs/b1/github/starfleetcadet75/rmips)](https://github.com/starfleetcadet75/rmips)
 
 RMIPS is a MIPS R3000 virtual machine simulator written in Rust and based on [VMIPS](http://www.dgate.org/vmips).
 
@@ -20,6 +20,13 @@ cargo build --release
 
 Install the `gcc-mips-linux-gnu` Ubuntu package in order to target MIPS using the GNU C compiler.
 The `tests` directory can be used as a starting point for creating new programs.
+
+## Debugging
+
+RMIPS exposes a GDB stub that can be used for debugging emulated programs over a local TCP connection.
+Start RMIPS with the `--debug` flag to enable the GDB server and then connect to it using `gdb-multiarch`.
+Use GDB's `file` command to load data from the program.bin file and not program.rom.
+The ROM file does not contain the debugging information that GDB requires.
 
 ## References
 

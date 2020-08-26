@@ -1,5 +1,5 @@
 use crate::cpu::cpzero::CPZero;
-use crate::memory::mapper::Mapper;
+use crate::memory::Memory;
 use crate::util::constants::{ExceptionCode, NUM_GPR, REG_ZERO};
 use crate::util::error::RmipsError;
 use capstone::prelude::*;
@@ -71,6 +71,13 @@ pub enum DelayState {
     Delayslot,
 }
 
+impl Default for DelayState {
+    fn default() -> Self {
+        DelayState::Normal
+    }
+}
+
+#[derive(Default)]
 pub struct CPU {
     /// Program counter
     pub pc: u32,
@@ -92,10 +99,12 @@ pub struct CPU {
     disassembler: Option<Capstone>,
 }
 
-impl CPU {
+impl<'a> CPU {
     pub fn new(enable_disassembler: bool) -> Self {
+        let mut cpu: CPU = Default::default();
+
         // Create an instance of Capstone to use as a disassembler if required
-        let disassembler = match enable_disassembler {
+        cpu.disassembler = match enable_disassembler {
             true => Some(
                 Capstone::new()
                     .mips()
@@ -106,18 +115,7 @@ impl CPU {
             ),
             false => None,
         };
-
-        CPU {
-            pc: 0,
-            reg: [0; NUM_GPR],
-            instruction: 0,
-            high: 0,
-            low: 0,
-            delay_state: DelayState::Normal,
-            delay_pc: 0,
-            cpzero: CPZero::new(),
-            disassembler,
-        }
+        cpu
     }
 
     /// Resets the CPU state to the initial values on startup
@@ -128,7 +126,7 @@ impl CPU {
     }
 
     /// Decodes and executes the next instruction according to the value in the program counter
-    pub fn step(&mut self, memory: &mut Mapper) -> Result<(), RmipsError> {
+    pub fn step(&mut self, memory: &mut impl Memory) -> Result<(), RmipsError> {
         // Get the physical address of the next instruction
         let phys_pc = self.cpzero.translate(self.pc);
 
@@ -238,17 +236,17 @@ impl CPU {
             0x11 => self.coprocessor_unimpl(1, instr, self.pc),
             0x12 => self.coprocessor_unimpl(2, instr, self.pc),
             0x13 => self.coprocessor_unimpl(3, instr, self.pc),
-            0x20 => self.lb_emulate(&memory, instr)?,
+            0x20 => self.lb_emulate(memory, instr)?,
             0x21 => self.lh_emulate(instr),
             0x22 => self.lwl_emulate(instr),
-            0x23 => self.lw_emulate(&memory, instr)?,
-            0x24 => self.lbu_emulate(&memory, instr)?,
+            0x23 => self.lw_emulate(memory, instr)?,
+            0x24 => self.lbu_emulate(memory, instr)?,
             0x25 => self.lhu_emulate(instr),
             0x26 => self.lwr_emulate(instr),
-            0x28 => self.sb_emulate(memory, instr),
-            0x29 => self.sh_emulate(memory, instr),
+            0x28 => self.sb_emulate(memory, instr)?,
+            0x29 => self.sh_emulate(memory, instr)?,
             0x2a => self.swl_emulate(instr),
-            0x2b => self.sw_emulate(memory, instr),
+            0x2b => self.sw_emulate(memory, instr)?,
             0x2e => self.swr_emulate(instr),
             0x31 => self.lwc1_emulate(instr),
             0x32 => self.lwc2_emulate(instr),
