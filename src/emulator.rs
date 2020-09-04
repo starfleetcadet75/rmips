@@ -7,6 +7,7 @@ use crate::memory::monitor::{AccessKind, Monitor};
 use crate::memory::ram::RAM;
 use crate::memory::range::Range;
 use crate::memory::rom::ROM;
+use crate::memory::Endian;
 use crate::util::error::RmipsError;
 use crate::util::opts::Opts;
 use gdbstub::{DisconnectReason, GdbStub, GdbStubError};
@@ -41,7 +42,7 @@ impl Emulator {
         Self::setup_ram(&opts, &mut memory)?;
         Self::setup_haltdevice(&opts, &mut memory)?;
         // Self::setup_clock()?;
-        Self::setup_testdevice(&mut memory)?;
+        Self::setup_testdevice(&opts, &mut memory)?;
 
         let mut cpu = CPU::new(opts.instrdump);
         cpu.reset();
@@ -160,6 +161,17 @@ impl Emulator {
     }
 
     fn setup_rom(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
+        let endian = match opts.bigendian {
+            true => {
+                eprintln!("Interpreting ROM file as Big-Endian");
+                Endian::Big
+            }
+            false => {
+                eprintln!("Interpreting ROM file as Little-Endian");
+                Endian::Little
+            }
+        };
+
         // Translate the provided virtual load address to a physical address
         let loadaddress = opts.loadaddress;
         if loadaddress < KSEG1 {
@@ -169,12 +181,12 @@ impl Emulator {
 
         // Load the provided ROM file
         let rom_path = &opts.romfile;
-        let rom = ROM::new(rom_path, paddress);
+        let rom = ROM::new(endian, rom_path, paddress);
 
         eprintln!(
             "Mapping ROM image ({}, {} words) to physical address 0x{:08x}",
             rom_path,
-            rom.get_extent() / 4,
+            rom.get_size() / 4,
             paddress
         );
         physmem.add_range(Box::new(rom))
@@ -182,12 +194,17 @@ impl Emulator {
 
     // Create a new RAM module to install at physical address zero
     fn setup_ram(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
+        let endian = match opts.bigendian {
+            true => Endian::Big,
+            false => Endian::Little,
+        };
+
         let paddress = 0;
-        let ram = RAM::new(opts.memsize, paddress);
+        let ram = RAM::new(endian, opts.memsize, paddress);
 
         eprintln!(
             "Mapping RAM module ({}KB) to physical address 0x{:08x}",
-            ram.get_extent() / 1024,
+            ram.get_size() / 1024,
             paddress
         );
         physmem.add_range(Box::new(ram))
@@ -195,7 +212,12 @@ impl Emulator {
 
     fn setup_haltdevice(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
         if !opts.nohaltdevice {
-            let halt_device = HaltDevice::new();
+            let endian = match opts.bigendian {
+                true => Endian::Big,
+                false => Endian::Little,
+            };
+
+            let halt_device = HaltDevice::new(endian);
             eprintln!(
                 "Mapping Halt Device to physical address 0x{:08x}",
                 HALTDEV_BASE_ADDRESS
@@ -205,8 +227,13 @@ impl Emulator {
         Ok(())
     }
 
-    fn setup_testdevice(physmem: &mut Mapper) -> Result<(), RmipsError> {
-        let testdev = TestDevice::new();
+    fn setup_testdevice(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
+        let endian = match opts.bigendian {
+            true => Endian::Big,
+            false => Endian::Little,
+        };
+
+        let testdev = TestDevice::new(endian);
         eprintln!(
             "Mapping Test Device to physical address 0x{:08x}",
             TESTDEV_BASE_ADDRESS

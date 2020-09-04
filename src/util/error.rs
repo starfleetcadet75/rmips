@@ -31,7 +31,7 @@ impl std::fmt::Display for RmipsError {
             RmipsError::InvalidInstruction(instruction) => write!(f, "Attempted to execute an invalid instruction: 0x{:08x}", instruction),
             RmipsError::InvalidMemoryAccess(address) => write!(f, "Attempted to access an invalid memory address: 0x{:08x}", address),
             RmipsError::UnmappedMemoryAccess(address) => write!(f, "Attempted to access an unmapped range of memory: 0x{:08x}", address),
-            RmipsError::MemoryMapping(base, extent, other_base, other_extent) => write!(f, "Unable to map memory range: (base 0x{:08x} extent 0x{:08x}) and (base 0x{:08x} extent 0x{:08x})", base, extent, other_base, other_extent),
+            RmipsError::MemoryMapping(base, size, other_base, other_size) => write!(f, "Unable to map memory range: (base 0x{:08x} size 0x{:08x}) and (base 0x{:08x} size 0x{:08x})", base, size, other_base, other_size),
             RmipsError::IOError(ref err) => err.fmt(f),
         }
     }

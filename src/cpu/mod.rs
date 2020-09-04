@@ -47,7 +47,7 @@ pub const NUM_GPR: usize = 32;
 /// The Status register contains the operating mode, interrupt enable flag, and diagnostic states
 const STATUS: usize = 12;
 /// Contains the cause of the last exception
-// const CAUSE: usize = 13;
+const CAUSE: usize = 13;
 /// Contains the address to return to after handling an exception
 const EPC: usize = 14;
 /// Processor Revision Identifier

@@ -18,9 +18,9 @@ impl Mapper {
             if range.overlaps(&r) {
                 return Err(RmipsError::MemoryMapping(
                     range.get_base(),
-                    range.get_extent(),
+                    range.get_size(),
                     r.get_base(),
-                    r.get_extent(),
+                    r.get_size(),
                 ));
             }
         }
@@ -112,8 +112,10 @@ impl fmt::Display for Mapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::Endian;
 
     struct TestRange {
+        endian: Endian,
         data: Vec<u8>,
         base: u32,
     }
@@ -121,6 +123,7 @@ mod tests {
     impl TestRange {
         fn new(base: u32) -> Self {
             TestRange {
+                endian: Endian::Little,
                 data: vec![
                     0xef, 0xbe, 0xad, 0xde, 0xbe, 0xba, 0xfe, 0xca, 0x78, 0x56, 0x34, 0x12,
                 ],
@@ -130,6 +133,10 @@ mod tests {
     }
 
     impl Range for TestRange {
+        fn get_endian(&self) -> Endian {
+            self.endian
+        }
+
         fn get_data_mut(&mut self) -> &mut Vec<u8> {
             &mut self.data
         }

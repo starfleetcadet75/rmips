@@ -99,7 +99,7 @@ pub struct CPU {
     disassembler: Option<Capstone>,
 }
 
-impl<'a> CPU {
+impl CPU {
     pub fn new(enable_disassembler: bool) -> Self {
         let mut cpu: CPU = Default::default();
 
@@ -300,7 +300,7 @@ impl<'a> CPU {
             _ => {}
         }
 
-        self.cpzero.enter_exception(self.pc, exception_code);
+        self.cpzero.exception(self.pc, exception_code);
     }
 }
 

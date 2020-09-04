@@ -1,10 +1,14 @@
+use crate::memory::Endian;
 use crate::util::error::RmipsError;
-use byteorder::{ByteOrder, NativeEndian};
+use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use std::fmt;
 
 /// Trait for an object that manages a range of mapped memory.
 /// Memory-mapped devices implement this trait.
 pub trait Range {
+    /// Returns the endianness of this memory range.
+    fn get_endian(&self) -> Endian;
+
     /// Returns a reference to the underlying vector of bytes.
     fn get_data(&self) -> &Vec<u8>;
 
@@ -15,20 +19,26 @@ pub trait Range {
     fn get_base(&self) -> u32;
 
     /// The number of bytes of memory provided.
-    fn get_extent(&self) -> usize {
+    fn get_size(&self) -> usize {
         self.get_data().len()
     }
 
     /// Fetch the word at the given offset into the Range.
     fn fetch_word(&self, offset: u32) -> Result<u32, RmipsError> {
         let offset = offset - self.get_base();
-        Ok(NativeEndian::read_u32(&self.get_data()[offset as usize..]))
+        match self.get_endian() {
+            Endian::Big => Ok(BigEndian::read_u32(&self.get_data()[offset as usize..])),
+            Endian::Little => Ok(LittleEndian::read_u32(&self.get_data()[offset as usize..])),
+        }
     }
 
     /// Fetch the halfword at the given offset into the Range.
     fn fetch_halfword(&self, offset: u32) -> Result<u16, RmipsError> {
         let offset = offset - self.get_base();
-        Ok(NativeEndian::read_u16(&self.get_data()[offset as usize..]))
+        match self.get_endian() {
+            Endian::Big => Ok(BigEndian::read_u16(&self.get_data()[offset as usize..])),
+            Endian::Little => Ok(LittleEndian::read_u16(&self.get_data()[offset as usize..])),
+        }
     }
 
     /// Fetch the byte at the given offset into the Range.
@@ -40,14 +50,24 @@ pub trait Range {
     /// Store a word at the given offset into the Range.
     fn store_word(&mut self, offset: u32, data: u32) -> Result<(), RmipsError> {
         let offset = offset - self.get_base();
-        NativeEndian::write_u32(&mut self.get_data_mut()[offset as usize..], data);
+        match self.get_endian() {
+            Endian::Big => BigEndian::write_u32(&mut self.get_data_mut()[offset as usize..], data),
+            Endian::Little => {
+                LittleEndian::write_u32(&mut self.get_data_mut()[offset as usize..], data)
+            }
+        };
         Ok(())
     }
 
     /// Store a halfword at the given offset into the Range.
     fn store_halfword(&mut self, offset: u32, data: u16) -> Result<(), RmipsError> {
         let offset = offset - self.get_base();
-        NativeEndian::write_u16(&mut self.get_data_mut()[offset as usize..], data);
+        match self.get_endian() {
+            Endian::Big => BigEndian::write_u16(&mut self.get_data_mut()[offset as usize..], data),
+            Endian::Little => {
+                LittleEndian::write_u16(&mut self.get_data_mut()[offset as usize..], data)
+            }
+        };
         Ok(())
     }
 
@@ -60,13 +80,13 @@ pub trait Range {
 
     /// Returns true if the given address is mapped by this Range.
     fn contains(&self, address: u32) -> bool {
-        (self.get_base() <= address) && (address < (self.get_base() + self.get_extent() as u32))
+        (self.get_base() <= address) && (address < (self.get_base() + self.get_size() as u32))
     }
 
     /// Returns true if the given Range overlaps with this Range.
     fn overlaps(&self, range: &Box<dyn Range>) -> bool {
-        let end = self.get_base() + self.get_extent() as u32;
-        let other_end = range.get_base() + range.get_extent() as u32;
+        let end = self.get_base() + self.get_size() as u32;
+        let other_end = range.get_base() + range.get_size() as u32;
 
         if self.get_base() <= range.get_base() && range.get_base() < end {
             true
@@ -88,7 +108,7 @@ impl fmt::Display for dyn Range {
             f,
             "Base: 0x{:08x} Size: 0x{:08x}",
             self.get_base(),
-            self.get_extent()
+            self.get_size()
         )
     }
 }
@@ -98,6 +118,7 @@ mod tests {
     use super::*;
 
     struct TestRange {
+        endian: Endian,
         data: Vec<u8>,
         base: u32,
     }
@@ -105,6 +126,7 @@ mod tests {
     impl TestRange {
         fn new(base: u32) -> Self {
             TestRange {
+                endian: Endian::Little,
                 data: vec![
                     0xef, 0xbe, 0xad, 0xde, 0xbe, 0xba, 0xfe, 0xca, 0x78, 0x56, 0x34, 0x12,
                 ],
@@ -114,12 +136,16 @@ mod tests {
     }
 
     impl Range for TestRange {
-        fn get_data_mut(&mut self) -> &mut Vec<u8> {
-            &mut self.data
+        fn get_endian(&self) -> Endian {
+            self.endian
         }
 
         fn get_data(&self) -> &Vec<u8> {
             &self.data
+        }
+
+        fn get_data_mut(&mut self) -> &mut Vec<u8> {
+            &mut self.data
         }
 
         fn get_base(&self) -> u32 {

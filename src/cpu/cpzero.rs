@@ -1,6 +1,6 @@
 use crate::cpu::{
-    ExceptionCode, EPC, KERNEL_SPACE_MASK, KSEG0, KSEG1, KSEG2, KSEG2_TOP, KSEG_SELECT_MASK, KUSEG,
-    NUM_GPR, PRID, STATUS,
+    ExceptionCode, CAUSE, EPC, KERNEL_SPACE_MASK, KSEG0, KSEG1, KSEG2, KSEG2_TOP, KSEG_SELECT_MASK,
+    KUSEG, NUM_GPR, PRID, STATUS,
 };
 use std::fmt;
 
@@ -114,16 +114,23 @@ impl CPZero {
         todo!();
     }
 
-    pub fn enter_exception(&mut self, pc: u32, _exception_code: ExceptionCode) {
-        self.reg[EPC] = pc; // Save the PC in the EPC register
+    /// Handles processor exceptions by setting the state of CP0.
+    /// See the IDT R30xx Family Software Reference Manual
+    /// Chapter 4-3 Exception Management for details.
+    pub fn exception(&mut self, pc: u32, _exception_code: ExceptionCode) {
+        // Save PC in the EPC register to point to the restart location
+        self.reg[EPC] = pc;
 
-        // Disable interrupts
-        self.reg[STATUS] = self.reg[STATUS] & StatusMask::IEC.bits();
+        // Switch to kernel-mode and disable interrupts
+        self.reg[STATUS] = self.reg[STATUS] & !(StatusMask::KUC.bits() | StatusMask::IEC.bits());
 
-        // self.reg[STATUS] =
-        //     (self.reg[STATUS] & !STATUS_KU_IE_MASK) | (self.reg[STATUS] & STATUS_KU_IE_MASK) << 2;
+        // Cause is setup so that software can see the reason for the exception.
+        // On address exceptions BadVaddr is also set.
+        // Memory management system exceptions set up some of the MMU registers too; see the chapter on memory management for more
+        // detail.
+        self.reg[CAUSE] = 1;
 
-        // Enter kernel mode
+        // Transfer control to the exception entry point
     }
 
     /// Read Indexed TLB Entry
@@ -155,7 +162,7 @@ impl CPZero {
         todo!()
     }
 
-    /// Checks if the given coprocessor number is enabled
+    /// Checks if the given coprocessor number is enabled.
     pub fn coprocessor_usable(&self, coprocno: u32) -> bool {
         match coprocno {
             0 => (self.reg[STATUS] & StatusMask::CU0.bits()) != 0,

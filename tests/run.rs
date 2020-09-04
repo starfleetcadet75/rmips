@@ -3,9 +3,9 @@ use rmips::util::error::RmipsError;
 use rmips::util::opts::Opts;
 
 #[test]
-fn run_emptymain_program() -> Result<(), RmipsError> {
-    let testfile = String::from("./tests/build/emptymain.rom");
-    let mut opts = Opts::new(testfile);
+fn run_emptymain_le_program() -> Result<(), RmipsError> {
+    let mut opts = Opts::default();
+    opts.romfile = String::from("./tests/build/emptymain_le.rom");
     opts.instrdump = true;
 
     let mut emulator = Emulator::new(opts)?;

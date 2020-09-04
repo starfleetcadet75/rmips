@@ -1,26 +1,38 @@
 CC = mips-linux-gnu-gcc
 LD = mips-linux-gnu-ld
 OBJCOPY = mips-linux-gnu-objcopy
-CFLAGS = -Wall -EL -fno-pic -mno-abicalls -march=3000 -mfp32
+CFLAGS = -Wall -fno-pic -mno-abicalls -march=3000 -mfp32
 
 SRC_DIR = src
 BUILD_DIR = build
 
 .PHONY: all clean
 
-all: emptymain.rom
+all: emptymain_le.rom emptymain_be.rom
 
-emptymain.rom: emptymain.bin
-	$(OBJCOPY) -O binary $(BUILD_DIR)/emptymain.bin $(BUILD_DIR)/emptymain.rom
+emptymain_le.rom: emptymain_le.bin
+	$(OBJCOPY) -O binary $(BUILD_DIR)/emptymain_le.bin $(BUILD_DIR)/emptymain_le.rom
 
-emptymain.bin: emptymain.o setup.o
-	$(LD) -EL -T ld.script -o $(BUILD_DIR)/emptymain.bin $(BUILD_DIR)/setup.o $(BUILD_DIR)/emptymain.o
+emptymain_be.rom: emptymain_be.bin
+	$(OBJCOPY) -O binary $(BUILD_DIR)/emptymain_be.bin $(BUILD_DIR)/emptymain_be.rom
 
-emptymain.o: $(SRC_DIR)/emptymain.c
-	$(CC) $(CFLAGS) -o $(BUILD_DIR)/emptymain.o -c $(SRC_DIR)/emptymain.c
+emptymain_le.bin: emptymain_le.o setup_le.o
+	$(LD) -EL -T ld.script -o $(BUILD_DIR)/emptymain_le.bin $(BUILD_DIR)/setup_le.o $(BUILD_DIR)/emptymain_le.o
 
-setup.o: $(SRC_DIR)/setup.s
-	$(CC) $(CFLAGS) -c -x assembler-with-cpp -o $(BUILD_DIR)/setup.o $(SRC_DIR)/setup.s
+emptymain_be.bin: emptymain_be.o setup_be.o
+	$(LD) -EB -T ld.script -o $(BUILD_DIR)/emptymain_be.bin $(BUILD_DIR)/setup_be.o $(BUILD_DIR)/emptymain_be.o
+
+emptymain_le.o: $(SRC_DIR)/emptymain.c
+	$(CC) $(CFLAGS) -EL -o $(BUILD_DIR)/emptymain_le.o -c $(SRC_DIR)/emptymain.c
+
+emptymain_be.o: $(SRC_DIR)/emptymain.c
+	$(CC) $(CFLAGS) -EB -o $(BUILD_DIR)/emptymain_be.o -c $(SRC_DIR)/emptymain.c
+
+setup_le.o: $(SRC_DIR)/setup.s
+	$(CC) $(CFLAGS) -EL -c -x assembler-with-cpp -o $(BUILD_DIR)/setup_le.o $(SRC_DIR)/setup.s
+
+setup_be.o: $(SRC_DIR)/setup.s
+	$(CC) $(CFLAGS) -EB -c -x assembler-with-cpp -o $(BUILD_DIR)/setup_be.o $(SRC_DIR)/setup.s
 
 clean:
 	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.bin $(BUILD_DIR)/*.rom

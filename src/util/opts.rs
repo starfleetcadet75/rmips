@@ -17,6 +17,9 @@ pub struct Opts {
     /// Enable GDB stub for debugging.
     #[clap(short, long)]
     pub debug: bool,
+    /// Interpret the ROM as a big-endian binary.
+    #[clap(long)]
+    pub bigendian: bool,
     /// Disassemble and print instructions as they are executed.
     #[clap(long)]
     pub instrdump: bool,
@@ -34,14 +37,15 @@ pub struct Opts {
     pub nohaltdevice: bool,
 }
 
-impl Opts {
-    pub fn new(romfile: String) -> Self {
+impl Default for Opts {
+    fn default() -> Self {
         Opts {
-            romfile,
+            romfile: String::new(),
             verbose: 0,
             loadaddress: 3217031168,
             memsize: 1048576,
             debug: false,
+            bigendian: false,
             instrdump: false,
             dumpcpu: false,
             haltdumpcpu: false,

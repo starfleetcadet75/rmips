@@ -6,6 +6,12 @@ pub mod ram;
 pub mod range;
 pub mod rom;
 
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord)]
+pub enum Endian {
+    Big,
+    Little,
+}
+
 pub trait Memory {
     fn fetch_word(&mut self, offset: u32) -> Result<u32, RmipsError>;
     fn fetch_halfword(&mut self, offset: u32) -> Result<u16, RmipsError>;
