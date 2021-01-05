@@ -17,9 +17,18 @@ pub struct Opts {
     /// Enable GDB stub for debugging.
     #[clap(short, long)]
     pub debug: bool,
+    /// TCP port for the GDB stub to listen on.
+    #[clap(long, default_value = "9001")]
+    pub debugport: u16,
+    /// IP address for the GDB stub to listen on.
+    #[clap(long, default_value = "127.0.0.1")]
+    pub debugip: String,
     /// Interpret the ROM as a big-endian binary.
     #[clap(long)]
     pub bigendian: bool,
+    /// Display the memory mappings for the emulator on startup.
+    #[clap(long)]
+    pub memmap: bool,
     /// Disassemble and print instructions as they are executed.
     #[clap(long)]
     pub instrdump: bool,
@@ -45,7 +54,10 @@ impl Default for Opts {
             loadaddress: 3217031168,
             memsize: 1048576,
             debug: false,
+            debugport: 9001,
+            debugip: String::from("127.0.0.1"),
             bigendian: false,
+            memmap: false,
             instrdump: false,
             dumpcpu: false,
             haltdumpcpu: false,

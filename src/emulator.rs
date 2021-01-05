@@ -1,4 +1,4 @@
-use crate::cpu::cpu::CPU;
+use crate::cpu::cpu::Cpu;
 use crate::cpu::KSEG1;
 use crate::devices::halt_device::{HaltDevice, HALTDEV_BASE_ADDRESS};
 use crate::devices::test_device::{TestDevice, TESTDEV_BASE_ADDRESS};
@@ -23,7 +23,7 @@ pub enum EmulationEvent {
 }
 
 pub struct Emulator {
-    pub cpu: CPU,
+    pub cpu: Cpu,
     pub(crate) memory: Mapper,
     pub(crate) breakpoints: Vec<u32>,
     pub(crate) watchpoints: Vec<u32>,
@@ -37,14 +37,14 @@ impl Emulator {
         // let intc = IntCtrl::new();
         let mut memory = Mapper::new();
 
-        // Setup and connect devices
+        // Setup and connect the various devices
         Self::setup_rom(&opts, &mut memory)?;
         Self::setup_ram(&opts, &mut memory)?;
         Self::setup_haltdevice(&opts, &mut memory)?;
         // Self::setup_clock()?;
         Self::setup_testdevice(&opts, &mut memory)?;
 
-        let mut cpu = CPU::new(opts.instrdump);
+        let mut cpu = Cpu::new(opts.instrdump);
         cpu.reset();
 
         Ok(Emulator {
@@ -58,43 +58,29 @@ impl Emulator {
     }
 
     pub fn run(&mut self) -> Result<(), RmipsError> {
-        eprintln!("\n*************[ RESET ]*************\n");
+        // Optionally display the memory map on startup
+        if self.opts.memmap {
+            println!("*************[ MEMORY MAP ]*************");
+            println!("{}", self.memory);
+        }
+
+        println!("\n*************[ RESET ]*************\n");
 
         if self.opts.debug {
-            let connection = Self::wait_for_tcp(9001)?;
+            let connection = Self::wait_for_tcp(&self.opts.debugip, self.opts.debugport)?;
             let mut debugger = GdbStub::new(connection);
 
             match debugger.run(self) {
-                Ok(disconnect_reason) => match disconnect_reason {
-                    DisconnectReason::Disconnect => {
+                disconnect_reason => match disconnect_reason {
+                    Ok(DisconnectReason::Disconnect) => {
                         // Run the program to completion
                         self.run_until_halt()?;
                     }
-                    DisconnectReason::TargetHalted => eprintln!("Target halted"),
-                    DisconnectReason::Kill => eprintln!("GDB sent a kill command"),
+                    Ok(DisconnectReason::TargetHalted) => println!("Target halted"),
+                    Ok(DisconnectReason::Kill) => println!("GDB sent a kill command"),
+                    Err(GdbStubError::TargetError(err)) => return Err(err),
+                    Err(err) => eprintln!("{}", err),
                 },
-                Err(GdbStubError::TargetError(e)) => {
-                    eprintln!("GDB target raised a fatal error: {:?}", e);
-                }
-                Err(GdbStubError::ConnectionRead(..)) => {
-                    eprintln!("GDB connection error while reading request")
-                }
-                Err(GdbStubError::ConnectionWrite(..)) => {
-                    eprintln!("GDB connection error while writing request")
-                }
-                Err(GdbStubError::MissingPacketBuffer) => eprintln!("GDB missing packet buffer"),
-                Err(GdbStubError::PacketBufferOverlow) => {
-                    eprintln!("GDB packet cannot fit in the provided packet buffer")
-                }
-                Err(GdbStubError::PacketParse) => {
-                    eprintln!("GDB could not parse the packet into a valid command")
-                }
-                Err(GdbStubError::PacketUnexpected) => {
-                    eprintln!("GDB client sent an unexpected packet")
-                }
-                Err(GdbStubError::MissingSetCurrentTid) => {
-                    eprintln!("GDB target does not implement set_current_thread")
-                }
             }
         } else {
             self.run_until_halt()?;
@@ -103,24 +89,24 @@ impl Emulator {
         Ok(())
     }
 
-    // Steps the CPU state until a halt event is triggered
+    // Steps the `Cpu` state until a halt event is triggered
     fn run_until_halt(&mut self) -> Result<(), RmipsError> {
         loop {
             if self.step()? == EmulationEvent::Halted {
-                // Dumps the CPU registers and stack on program halt
+                // Dumps the registers and stack on program halt
                 if self.opts.haltdumpcpu {
-                    eprintln!("*************[ CPU State ]*************");
-                    eprintln!("{}", self.cpu);
+                    println!("*************[ CPU State ]*************");
+                    println!("{}", self.cpu);
                 }
 
                 // Dumps the CP0 registers and the contents of the TLB on program halt
                 if self.opts.haltdumpcp0 {
-                    eprintln!("*************[ CP0 State ]*************");
-                    eprintln!("{}", self.cpu.cpzero);
+                    println!("*************[ CP0 State ]*************");
+                    println!("{}", self.cpu.cpzero);
                 }
 
-                eprintln!("Executed {} instructions", self.instruction_count);
-                eprintln!("\n*************[ HALT ]*************\n");
+                println!("Executed {} instructions", self.instruction_count);
+                println!("\n*************[ HALT ]*************\n");
                 break;
             }
         }
@@ -139,8 +125,8 @@ impl Emulator {
 
         // Dump register states after each instruction if requested
         if self.opts.dumpcpu {
-            eprintln!("*************[ CPU State ]*************");
-            eprintln!("{}", self.cpu);
+            println!("*************[ CPU State ]*************");
+            println!("{}", self.cpu);
         }
 
         if let Some(access) = hit_watchpoint {
@@ -154,6 +140,7 @@ impl Emulator {
         } else if self.breakpoints.contains(&self.cpu.pc) {
             Ok(EmulationEvent::Breakpoint)
         } else if self.instruction_count == 40 {
+            // Trigger a halt at 40 instructions for now
             Ok(EmulationEvent::Halted)
         } else {
             Ok(EmulationEvent::Step)
@@ -163,11 +150,11 @@ impl Emulator {
     fn setup_rom(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
         let endian = match opts.bigendian {
             true => {
-                eprintln!("Interpreting ROM file as Big-Endian");
+                println!("Interpreting ROM file as Big-Endian");
                 Endian::Big
             }
             false => {
-                eprintln!("Interpreting ROM file as Little-Endian");
+                println!("Interpreting ROM file as Little-Endian");
                 Endian::Little
             }
         };
@@ -181,9 +168,9 @@ impl Emulator {
 
         // Load the provided ROM file
         let rom_path = &opts.romfile;
-        let rom = ROM::new(endian, rom_path, paddress);
+        let rom = ROM::new(endian, rom_path, paddress)?;
 
-        eprintln!(
+        println!(
             "Mapping ROM image ({}, {} words) to physical address 0x{:08x}",
             rom_path,
             rom.get_size() / 4,
@@ -202,7 +189,7 @@ impl Emulator {
         let paddress = 0;
         let ram = RAM::new(endian, opts.memsize, paddress);
 
-        eprintln!(
+        println!(
             "Mapping RAM module ({}KB) to physical address 0x{:08x}",
             ram.get_size() / 1024,
             paddress
@@ -218,7 +205,7 @@ impl Emulator {
             };
 
             let halt_device = HaltDevice::new(endian);
-            eprintln!(
+            println!(
                 "Mapping Halt Device to physical address 0x{:08x}",
                 HALTDEV_BASE_ADDRESS
             );
@@ -234,20 +221,20 @@ impl Emulator {
         };
 
         let testdev = TestDevice::new(endian);
-        eprintln!(
+        println!(
             "Mapping Test Device to physical address 0x{:08x}",
             TESTDEV_BASE_ADDRESS
         );
         physmem.add_range(Box::new(testdev))
     }
 
-    fn wait_for_tcp(port: u16) -> Result<TcpStream, RmipsError> {
-        let sockaddr = format!("127.0.0.1:{}", port);
-        eprintln!("Waiting for a GDB connection on {:?}...", sockaddr);
+    fn wait_for_tcp(ip: &str, port: u16) -> Result<TcpStream, RmipsError> {
+        let sockaddr = format!("{}:{}", ip, port);
+        println!("Waiting for a GDB connection on {:?}...", sockaddr);
 
         let sock = TcpListener::bind(sockaddr)?;
         let (stream, address) = sock.accept()?;
-        eprintln!("Debugger connected from {}", address);
+        println!("Debugger connected from {}", address);
 
         Ok(stream)
     }

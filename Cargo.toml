@@ -1,24 +1,23 @@
 [package]
 name = "rmips"
 version = "0.1.0"
+edition = "2018"
 authors = ["starfleetcadet75 <starfleetcadet75@gmail.com>"]
 description = "MIPS R3000 virtual machine simulator"
-keywords = [
-    "emulator",
-    "mips",
-]
 readme = "README.md"
 license-file = "LICENSE.md"
 repository = "https://github.com/starfleetcadet75/rmips"
-edition = "2018"
+keywords = ["emulator", "mips"]
+categories = ["embedded", "emulators"]
 
 [dependencies]
-log = "0.4.11"
+log = "0.4"
 anyhow = "1.0"
-gdbstub = "0.2.1"
+gdbstub = { git = 'https://github.com/starfleetcadet75/gdbstub' }
 bitflags = "1.2.1"
 capstone = "0.7.0"
 byteorder = "1.3.4"
 simplelog = "0.8.0"
+thiserror = "1.0.23"
 clap = "3.0.0-beta.1"
 human-panic = "1.0.3"

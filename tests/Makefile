@@ -1,7 +1,7 @@
 CC = mips-linux-gnu-gcc
 LD = mips-linux-gnu-ld
 OBJCOPY = mips-linux-gnu-objcopy
-CFLAGS = -Wall -fno-pic -mno-abicalls -march=3000 -mfp32
+CFLAGS = -Wall -g -fno-pic -mno-abicalls -march=3000 -mfp32
 
 SRC_DIR = src
 BUILD_DIR = build

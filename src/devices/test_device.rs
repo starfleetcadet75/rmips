@@ -21,6 +21,10 @@ impl TestDevice {
 }
 
 impl Range for TestDevice {
+    fn get_name(&self) -> &str {
+        "test-device"
+    }
+
     fn get_endian(&self) -> Endian {
         self.endian
     }

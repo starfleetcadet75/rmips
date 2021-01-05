@@ -1,11 +1,11 @@
-//! This module contains the emulation helper functions that are used by the `CPU` for executing instructions.
-use crate::cpu::cpu::{DelayState, CPU};
+//! This module contains the emulation helper functions that are used by the `Cpu` for executing instructions.
+use crate::cpu::cpu::{Cpu, DelayState};
 use crate::cpu::{ExceptionCode, REG_RA};
 use crate::memory::Memory;
 use crate::util::error::RmipsError;
 
 #[allow(unused_variables)]
-impl CPU {
+impl Cpu {
     /// Shift left logical
     pub fn sll_emulate(&mut self, instr: u32) {
         self.reg[rd!(instr)] = self.reg[rt!(instr)] << shamt!(instr);
@@ -496,7 +496,7 @@ mod tests {
 
     #[test]
     fn test_sll_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00052140;
         cpu.reg[rt!(instr)] = 42;
         cpu.sll_emulate(instr);
@@ -505,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_srl_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00052142;
         cpu.reg[rt!(instr)] = 42;
         cpu.srl_emulate(instr);
@@ -514,7 +514,7 @@ mod tests {
 
     #[test]
     fn test_srlv_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00a42006;
         cpu.reg[rt!(instr)] = 0xffff;
         cpu.reg[rs!(instr)] = 1;
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn test_jalr_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x0040f809;
         let pc = 0xbfc019b0;
 
@@ -579,7 +579,7 @@ mod tests {
 
     #[test]
     fn test_add_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00a62020;
         cpu.reg[rt!(instr)] = 0xffff_0fff;
         cpu.reg[rs!(instr)] = 0x0001_0000;
@@ -595,7 +595,7 @@ mod tests {
 
     #[test]
     fn test_addu_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00a62021;
         cpu.reg[rt!(instr)] = 0xffff_0fff;
         cpu.reg[rs!(instr)] = 0x0001_0000;
@@ -605,7 +605,7 @@ mod tests {
 
     #[test]
     fn test_sub_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00a62022;
         cpu.reg[rt!(instr)] = 40;
         cpu.reg[rs!(instr)] = 42;
@@ -621,7 +621,7 @@ mod tests {
 
     #[test]
     fn test_subu_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00a62023;
         cpu.reg[rt!(instr)] = 1;
         cpu.reg[rs!(instr)] = 0;
@@ -631,7 +631,7 @@ mod tests {
 
     #[test]
     fn test_and_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00852024;
         cpu.reg[rt!(instr)] = 42;
         cpu.reg[rs!(instr)] = 13;
@@ -641,7 +641,7 @@ mod tests {
 
     #[test]
     fn test_or_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00852024;
         cpu.reg[rt!(instr)] = 42;
         cpu.reg[rs!(instr)] = 13;
@@ -651,7 +651,7 @@ mod tests {
 
     #[test]
     fn test_xor_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00a62026;
         cpu.reg[rt!(instr)] = 4242;
         cpu.reg[rs!(instr)] = 88;
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_nor_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x00852027;
         cpu.reg[rt!(instr)] = 42;
         cpu.reg[rs!(instr)] = 13;
@@ -695,7 +695,7 @@ mod tests {
 
     #[test]
     fn test_beq_emulate_branches() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x10530005;
         let pc = 0xbfc006ec;
 
@@ -709,7 +709,7 @@ mod tests {
 
     #[test]
     fn test_beq_emulate_not_branches() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x10530005;
         let pc = 0xbfc006ec;
 
@@ -723,7 +723,7 @@ mod tests {
 
     #[test]
     fn test_bne_emulate_branches() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x10530005;
         let pc = 0xbfc006ec;
 
@@ -737,7 +737,7 @@ mod tests {
 
     #[test]
     fn test_bne_emulate_not_branches() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x10530005;
         let pc = 0xbfc006ec;
 
@@ -757,7 +757,7 @@ mod tests {
 
     #[test]
     fn test_addi_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x20840080;
         cpu.reg[rs!(instr)] = 42;
         cpu.addi_emulate(instr);
@@ -772,7 +772,7 @@ mod tests {
 
     #[test]
     fn test_addiu_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x248400ff;
         cpu.reg[rs!(instr)] = 42;
         cpu.addiu_emulate(instr);
@@ -781,7 +781,7 @@ mod tests {
 
     #[test]
     fn test_andi_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x30a40fff;
         cpu.reg[rs!(instr)] = 0x0110;
         cpu.andi_emulate(instr);
@@ -790,7 +790,7 @@ mod tests {
 
     #[test]
     fn test_ori_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x34a41001;
         cpu.reg[rs!(instr)] = 0x0110;
         cpu.ori_emulate(instr);
@@ -799,7 +799,7 @@ mod tests {
 
     #[test]
     fn test_xori_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x38a44321;
         cpu.reg[rs!(instr)] = 0x1234;
         cpu.xori_emulate(instr);
@@ -808,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_lui_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         let instr = 0x3c040064;
         cpu.lui_emulate(instr);
         assert_eq!(cpu.reg[REG_A0], 0x0064_0000);
@@ -870,7 +870,7 @@ mod tests {
 
     #[test]
     fn test_j_emulate() {
-        let mut cpu = CPU::new(false);
+        let mut cpu = Cpu::new(false);
         cpu.j_emulate(0xbf00100, 0xbfc00000);
         assert_eq!(cpu.delay_pc, 0xbfc00400);
         assert_eq!(cpu.delay_state, DelayState::Delaying)

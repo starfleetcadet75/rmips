@@ -1,5 +1,5 @@
 use crate::cpu::cpzero::CPZero;
-use crate::cpu::{ExceptionCode, NUM_GPR, REG_ZERO};
+use crate::cpu::{ExceptionCode, REG_ZERO};
 use crate::memory::Memory;
 use crate::util::error::RmipsError;
 use capstone::prelude::*;
@@ -78,32 +78,32 @@ impl Default for DelayState {
 }
 
 #[derive(Default)]
-pub struct CPU {
+pub struct Cpu {
     /// Program counter
     pub pc: u32,
     /// General-purpose registers
-    pub reg: [u32; NUM_GPR],
+    pub reg: [u32; 32],
     /// The current instruction
     pub instruction: u32,
-    /// High division result
+    /// High division result register
     pub high: u32,
-    /// Low division result
+    /// Low division result register
     pub low: u32,
     /// Indicates whether the current instruction is in a delay slot
     pub delay_state: DelayState,
     /// Saved target address for delayed branches
     pub delay_pc: u32,
-    /// The System Control Coprocessor
+    /// The System Control Coprocessor (CP0)
     pub cpzero: CPZero,
     /// Capstone instance for disassembly
     disassembler: Option<Capstone>,
 }
 
-impl CPU {
+impl Cpu {
     pub fn new(enable_disassembler: bool) -> Self {
-        let mut cpu: CPU = Default::default();
+        let mut cpu: Cpu = Default::default();
 
-        // Create an instance of Capstone to use as a disassembler if required
+        // Create an instance of Capstone to use as a disassembler if requested
         cpu.disassembler = match enable_disassembler {
             true => Some(
                 Capstone::new()
@@ -118,7 +118,7 @@ impl CPU {
         cpu
     }
 
-    /// Resets the CPU state to the initial values on startup
+    /// Resets the `Cpu` state to the initial startup values
     pub fn reset(&mut self) {
         self.reg[REG_ZERO] = 0;
         self.pc = 0xbfc00000;
@@ -139,17 +139,17 @@ impl CPU {
             if let Ok(instr) = disassembler.disasm_count(&code, self.pc.into(), 1) {
                 // Will always be one instruction
                 for i in instr.iter() {
-                    eprintln!(
+                    println!(
                         "PC=0x{:08x} [{:08x}]\t{:08x}  {} {}",
                         self.pc,
                         phys_pc,
                         self.instruction,
-                        i.mnemonic().unwrap(),
-                        i.op_str().unwrap()
+                        i.mnemonic().expect("capstone errored"),
+                        i.op_str().expect("capstone errored")
                     );
                 }
             } else {
-                eprintln!(
+                println!(
                     "PC=0x{:08x} [{:08x}]\t{:08x}  Disassembly Failed",
                     self.pc, phys_pc, self.instruction,
                 );
@@ -304,7 +304,7 @@ impl CPU {
     }
 }
 
-impl fmt::Display for CPU {
+impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = (1..=31)
             .map(|r| {

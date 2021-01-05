@@ -1,26 +1,36 @@
 use crate::memory::range::Range;
 use crate::memory::Endian;
+use crate::util::error::RmipsError;
 use std::fs::File;
 use std::io::Read;
 
 pub struct ROM {
+    rom_path: String,
     endian: Endian,
     data: Vec<u8>,
     base: u32,
 }
 
 impl ROM {
-    pub fn new(endian: Endian, rom_path: &str, base: u32) -> Self {
-        let mut f = File::open(rom_path).expect("Failed to open ROM file for reading");
+    pub fn new(endian: Endian, rom_path: &str, base: u32) -> Result<Self, RmipsError> {
+        let mut f = File::open(rom_path)?;
         let mut data = Vec::new();
-        f.read_to_end(&mut data)
-            .expect("Failed to read from ROM file");
+        f.read_to_end(&mut data)?;
 
-        ROM { endian, data, base }
+        Ok(ROM {
+            rom_path: rom_path.to_string(),
+            endian,
+            data,
+            base,
+        })
     }
 }
 
 impl Range for ROM {
+    fn get_name(&self) -> &str {
+        &self.rom_path
+    }
+
     fn get_endian(&self) -> Endian {
         self.endian
     }

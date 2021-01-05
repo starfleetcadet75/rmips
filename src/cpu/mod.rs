@@ -41,8 +41,6 @@ pub const REG_A0: usize = 4;
 // pub const REG_FP: usize = 30;
 /// Return address register
 pub const REG_RA: usize = 31;
-/// Number of general-purpose registers in the processor
-pub const NUM_GPR: usize = 32;
 
 /// The Status register contains the operating mode, interrupt enable flag, and diagnostic states
 const STATUS: usize = 12;

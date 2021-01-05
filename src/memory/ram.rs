@@ -18,6 +18,10 @@ impl RAM {
 }
 
 impl Range for RAM {
+    fn get_name(&self) -> &str {
+        "ram"
+    }
+
     fn get_endian(&self) -> Endian {
         self.endian
     }

@@ -1,8 +1,8 @@
+use anyhow::Result;
 use clap::derive::Clap;
 use human_panic::setup_panic;
 use log::LevelFilter;
 use rmips::emulator::Emulator;
-use rmips::util::error::RmipsError;
 use rmips::util::opts::Opts;
 use simplelog::{CombinedLogger, TermLogger, TerminalMode, WriteLogger};
 use std::env;
@@ -33,7 +33,7 @@ fn setup_logger(opts: &Opts) {
     .expect("Failed to initialize logging");
 }
 
-fn main() -> anyhow::Result<(), RmipsError> {
+fn main() -> Result<()> {
     setup_panic!(Metadata {
         name: env!("CARGO_PKG_NAME").into(),
         version: env!("CARGO_PKG_VERSION").into(),
@@ -45,5 +45,10 @@ fn main() -> anyhow::Result<(), RmipsError> {
     setup_logger(&opts);
 
     let mut emulator = Emulator::new(opts)?;
-    emulator.run()
+    if let Err(err) = emulator.run() {
+        eprintln!("Error: {:#}", err);
+        std::process::exit(1);
+    }
+
+    Ok(())
 }

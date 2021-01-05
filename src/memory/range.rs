@@ -6,6 +6,9 @@ use std::fmt;
 /// Trait for an object that manages a range of mapped memory.
 /// Memory-mapped devices implement this trait.
 pub trait Range {
+    /// Returns the name given to this memory range.
+    fn get_name(&self) -> &str;
+
     /// Returns the endianness of this memory range.
     fn get_endian(&self) -> Endian;
 
@@ -106,9 +109,11 @@ impl fmt::Display for dyn Range {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Base: 0x{:08x} Size: 0x{:08x}",
+            "0x{:>08x}   0x{:08x}   {:>8x} {}",
             self.get_base(),
-            self.get_size()
+            self.get_base() as usize + self.get_size(),
+            self.get_size(),
+            self.get_name()
         )
     }
 }
@@ -136,6 +141,10 @@ mod tests {
     }
 
     impl Range for TestRange {
+        fn get_name(&self) -> &str {
+            "test"
+        }
+
         fn get_endian(&self) -> Endian {
             self.endian
         }

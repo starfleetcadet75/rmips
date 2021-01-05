@@ -22,6 +22,10 @@ impl HaltDevice {
 }
 
 impl Range for HaltDevice {
+    fn get_name(&self) -> &str {
+        "halt-device"
+    }
+
     fn get_endian(&self) -> Endian {
         self.endian
     }

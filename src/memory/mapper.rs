@@ -101,7 +101,6 @@ impl Memory for Mapper {
 
 impl fmt::Display for Mapper {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "Mapped Memory Ranges:")?;
         for range in &self.ranges {
             writeln!(f, "{}", range)?;
         }
@@ -133,6 +132,10 @@ mod tests {
     }
 
     impl Range for TestRange {
+        fn get_name(&self) -> &str {
+            "test"
+        }
+
         fn get_endian(&self) -> Endian {
             self.endian
         }

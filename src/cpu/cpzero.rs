@@ -1,6 +1,6 @@
 use crate::cpu::{
     ExceptionCode, CAUSE, EPC, KERNEL_SPACE_MASK, KSEG0, KSEG1, KSEG2, KSEG2_TOP, KSEG_SELECT_MASK,
-    KUSEG, NUM_GPR, PRID, STATUS,
+    KUSEG, PRID, STATUS,
 };
 use std::fmt;
 
@@ -8,7 +8,7 @@ bitflags! {
     /// Bitmasks for extracting fields from the Status Register (SR)
     struct StatusMask: u32 {
         /// Coprocessor 3 Usable
-        const CU3 = 0b10000000_00000000_00000000_00000000;
+        const CU3 = 0b1000_0000_0000_0000_0000_0000_0000_0000;
         /// Coprocessor 2 Usable
         const CU2 = 0b01000000_00000000_00000000_00000000;
         /// Coprocessor 1 Usable
@@ -53,7 +53,11 @@ bitflags! {
 /// CP0 is the sytem control coprocessor that handles address translation and exception handling.
 #[derive(Default)]
 pub struct CPZero {
-    pub reg: [u32; NUM_GPR],
+    // TODO: Wait wait wait, there should only be 3 cp0 registers right?
+    pub reg: [u32; 32],
+    pub status: u32,
+    pub badvaddr: u32,
+    pub cause: u32,
 }
 
 impl CPZero {
