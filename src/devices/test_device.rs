@@ -15,6 +15,9 @@ pub struct TestDevice {
 
 impl TestDevice {
     pub fn new() -> Self {
+        // Set initial device state
+        // data[0x0b] = 0x02;  // Status register in 24 hour mode
+
         Self {
             data: [0; DATA_LEN],
         }

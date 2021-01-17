@@ -24,7 +24,7 @@ impl Default for DelayState {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Cpu {
     /// Program counter
     pub pc: Address,
@@ -166,11 +166,11 @@ impl Cpu {
 
                 if 15 < rs {
                     match instr.funct() {
-                        1 => self.cpzero.tlbr_emulate(instr),
-                        2 => self.cpzero.tlbwi_emulate(instr),
-                        6 => self.cpzero.tlbwr_emulate(instr),
-                        8 => self.cpzero.tlbp_emulate(instr),
-                        16 => self.cpzero.rfe_emulate(instr),
+                        1 => self.cpzero.tlbr_emulate(),
+                        2 => self.cpzero.tlbwi_emulate(),
+                        6 => self.cpzero.tlbwr_emulate(),
+                        8 => self.cpzero.tlbp_emulate(),
+                        16 => self.cpzero.rfe_emulate(),
                         _ => self.exception(ExceptionCode::ReservedInstruction),
                     }
                 } else {

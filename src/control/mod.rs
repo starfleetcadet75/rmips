@@ -7,6 +7,7 @@ pub(crate) mod cpu;
 pub(crate) mod cpzero;
 mod instruction;
 mod instructions;
+mod tlbentry;
 
 type Register = usize;
 
@@ -66,7 +67,7 @@ pub const KSEG2_TOP: Address = 0xe0000000;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ExceptionCode {
-    /// Interrupt
+    /// External interrupt
     Interrupt = 0,
     /// TLB Modification
     TlbMod = 1,

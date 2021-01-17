@@ -1,12 +1,26 @@
 use crate::control::instruction::Instruction;
+use crate::control::tlbentry::TlbEntry;
 use crate::control::Register;
 use crate::control::{
     ExceptionCode, KERNEL_SPACE_MASK, KSEG0, KSEG1, KSEG2, KSEG2_TOP, KSEG_SELECT_MASK, KUSEG,
 };
 use crate::Address;
 
+const TLB_ENTRIES: usize = 64;
+const RANDOM_UPPER_BOUND: u32 = 63;
+
+/// TLB entry index register.
+pub const INDEX: Register = 0;
+/// TLB randomized access register.
+pub const RANDOM: Register = 1;
+/// Low-order word of "current" TLB entry.
+pub const ENTRYLO: Register = 2;
+/// Page-table lookup address.
+pub const CONTEXT: Register = 4;
 /// Contains the last invalid program address which caused a trap.
 pub const BADVADDR: Register = 8;
+/// High-order word of "current" TLB entry.
+pub const ENTRYHI: Register = 10;
 /// The Status register contains the operating mode, interrupt enable flag, and diagnostic states.
 pub const STATUS: Register = 12;
 /// Contains the cause of the last exception.
@@ -17,7 +31,27 @@ pub const EPC: Register = 14;
 pub const PRID: Register = 15;
 
 bitflags! {
-    /// Bitmasks for extracting fields from the Status Register (SR).
+    /// Bitmasks for extracting fields from the Index register.
+    /// See Figure 6.3 in IDT R30xx Manual on page 6-4.
+    struct IndexMask: u32 {
+        /// Set when a tlbp instruction failed to find a valid translation.
+        const P = 0b1000_0000_0000_0000_0000_0000_0000_0000;
+        /// The index into the TLB.
+        const IDX = 0b0000_0000_0000_0000_0011_1111_0000_0000;
+    }
+}
+
+bitflags! {
+    /// Bitmasks for extracting fields from the Random register.
+    /// See Figure 6.4 in IDT R30xx Manual on page 6-4.
+    struct RandomMask: u32 {
+        /// The actual random value.
+        const VAL = 0x00003f00;
+    }
+}
+
+bitflags! {
+    /// Bitmasks for extracting fields from the Status register (SR).
     /// See Figure 3.2 in IDT R30xx Manual on page 3-4.
     struct StatusMask: u32 {
         /// Coprocessor 3 Usable
@@ -64,9 +98,19 @@ bitflags! {
 }
 
 /// CP0 is the sytem control coprocessor that handles address translation and exception handling.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct CPZero {
     pub reg: [u32; 32],
+    tlb: [TlbEntry; TLB_ENTRIES],
+}
+
+impl Default for CPZero {
+    fn default() -> Self {
+        CPZero {
+            reg: [0; 32],
+            tlb: [TlbEntry::default(); TLB_ENTRIES],
+        }
+    }
 }
 
 impl CPZero {
@@ -81,6 +125,9 @@ impl CPZero {
         for r in self.reg.iter_mut() {
             *r = 0;
         }
+
+        // Random register is initialized to its maximum value (63) on reset
+        self.reg[RANDOM] = RANDOM_UPPER_BOUND << 8;
 
         // Enable bootstrap exception vectors on reset
         self.reg[STATUS] |= StatusMask::BEV.bits();
@@ -102,6 +149,8 @@ impl CPZero {
     }
 
     /// Translates a virtual address to a physical address.
+    ///
+    /// Addresses in kuseg and kseg2 use the TLB for translation.
     pub fn translate(&self, vaddress: Address) -> Address {
         // let mut cacheable = false;
 
@@ -150,32 +199,35 @@ impl CPZero {
     }
 
     /// Read Indexed TLB Entry
-    pub fn tlbr_emulate(&self, _instr: Instruction) {
+    pub fn tlbr_emulate(&self) {
         todo!()
     }
 
     /// Write Indexed TLB Entry
-    pub fn tlbwi_emulate(&self, _instr: Instruction) {
-        todo!()
+    pub fn tlbwi_emulate(&mut self) {
+        let index = ((self.reg[INDEX] & IndexMask::IDX.bits()) >> 8) as usize;
+        self.tlb[index].entryhi = self.reg[ENTRYHI];
+        self.tlb[index].entrylo = self.reg[ENTRYLO];
     }
 
     /// Write Random TLB Entry
-    pub fn tlbwr_emulate(&self, _instr: Instruction) {
-        todo!()
+    pub fn tlbwr_emulate(&mut self) {
+        let index = ((self.reg[RANDOM] & RandomMask::VAL.bits()) >> 8) as usize;
+        self.tlb[index].entryhi = self.reg[ENTRYHI];
+        self.tlb[index].entrylo = self.reg[ENTRYLO];
     }
 
     /// Probe TLB For Matching Entry
-    pub fn tlbp_emulate(&self, _instr: Instruction) {
+    pub fn tlbp_emulate(&self) {
         todo!()
     }
 
     /// Restore from Exception
-    /// This instruction restores the status register to go back to the state prior to the trap.
-    pub fn rfe_emulate(&self, _instr: Instruction) {
-        todo!()
+    pub fn rfe_emulate(&mut self) {
+        self.reg[STATUS] = (self.reg[STATUS] & 0xfffffff0) | ((self.reg[STATUS] >> 2) & 0x0f);
     }
 
-    pub fn bc0x_emulate(&self, _instr: Instruction, _pc: u32) {
+    pub fn bc0x_emulate(&self, _instr: Instruction, _pc: Address) {
         todo!()
     }
 
@@ -198,5 +250,42 @@ impl CPZero {
     /// Returns true if interrupts are currently enabled.
     pub fn interrupts_enabled(&self) -> bool {
         (self.reg[STATUS] & StatusMask::IEC.bits()) == 1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cpzero_reset() {
+        let mut cp0 = CPZero::new();
+        cp0.reset();
+
+        assert!(cp0.kernel_mode());
+        assert!(!cp0.interrupts_enabled());
+        assert_eq!(
+            (cp0.reg[RANDOM] & RandomMask::VAL.bits()) >> 8,
+            RANDOM_UPPER_BOUND
+        );
+    }
+
+    #[test]
+    fn cpzero_rfe_emulate() {
+        let mut cp0 = CPZero::new();
+        cp0.reset();
+
+        cp0.reg[STATUS] |= StatusMask::KUO.bits();
+        cp0.reg[STATUS] &= !(StatusMask::IEO.bits());
+        cp0.reg[STATUS] &= !(StatusMask::KUP.bits());
+        cp0.reg[STATUS] |= StatusMask::IEP.bits();
+        cp0.rfe_emulate();
+
+        assert!(cp0.reg[STATUS] & StatusMask::KUO.bits() != 0);
+        assert!(cp0.reg[STATUS] & StatusMask::IEO.bits() == 0);
+        assert!(cp0.reg[STATUS] & StatusMask::KUP.bits() != 0);
+        assert!(cp0.reg[STATUS] & StatusMask::IEP.bits() == 0);
+        assert!(cp0.reg[STATUS] & StatusMask::KUC.bits() == 0);
+        assert!(cp0.reg[STATUS] & StatusMask::IEC.bits() != 0);
     }
 }

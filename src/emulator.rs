@@ -11,7 +11,7 @@ use crate::memory::bus::Bus;
 use crate::memory::monitor::{AccessKind, Monitor};
 use crate::memory::ram::Ram;
 use crate::memory::rom::Rom;
-use crate::util::error::Result;
+use crate::util::error::{Result, RmipsError};
 use crate::util::opts::Opts;
 use crate::{Address, Endian};
 
@@ -98,7 +98,7 @@ impl Emulator {
         Ok(())
     }
 
-    // Steps the `Cpu` state until a halt event is triggered
+    // Steps the `Cpu` state until a halt event is triggered.
     fn run_until_halt(&mut self) -> Result<()> {
         loop {
             if self.step()? == EmulationEvent::Halted {
@@ -118,7 +118,13 @@ impl Emulator {
             hit_watchpoint = Some(access)
         });
 
-        self.cpu.step(&mut monitor)?;
+        // Step the `Cpu` until a halt is triggered
+        match self.cpu.step(&mut monitor) {
+            Err(RmipsError::Halt) => return Ok(EmulationEvent::Halted),
+            Err(err) => return Err(err),
+            _ => {}
+        }
+
         self.instruction_count += 1;
 
         if let Some(access) = hit_watchpoint {
@@ -131,9 +137,6 @@ impl Emulator {
             })
         } else if self.breakpoints.contains(&self.cpu.pc) {
             Ok(EmulationEvent::Breakpoint)
-        } else if self.instruction_count == 40 {
-            // Trigger a halt at 40 instructions for now
-            Ok(EmulationEvent::Halted)
         } else {
             Ok(EmulationEvent::Step)
         }
@@ -183,13 +186,13 @@ fn setup_haltdevice(opts: &Opts, bus: &mut Bus) -> Result<()> {
 
     if !opts.nohaltdevice {
         let paddress = BASE_ADDRESS;
-        let haltdev = HaltDevice::new();
+        let haltdev = HaltDevice;
 
         println!(
             "Mapping Halt Device to physical address 0x{:08x}",
             BASE_ADDRESS
         );
-        bus.register(Box::new(haltdev), paddress, DATA_LEN)
+        bus.register(Box::new(haltdev), paddress, std::mem::size_of::<Address>())
     } else {
         Ok(())
     }
