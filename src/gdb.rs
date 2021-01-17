@@ -1,19 +1,24 @@
-use crate::emulator::{EmulationEvent, Emulator};
-use crate::memory::Memory;
-use crate::util::error::RmipsError;
+use std::convert::TryInto;
+
 use gdbstub::arch;
 use gdbstub::arch::mips::reg::id::MipsRegId;
+use gdbstub::arch::Arch;
 use gdbstub::target::ext::base::singlethread::{ResumeAction, SingleThreadOps, StopReason};
 use gdbstub::target::ext::base::BaseOps;
 use gdbstub::target::ext::breakpoints::{
     HwWatchpoint, HwWatchpointOps, SwBreakpoint, SwBreakpointOps, WatchKind,
 };
 use gdbstub::target::{Target, TargetError, TargetResult};
-use log::info;
-use std::convert::TryInto;
+use log::error;
+
+use crate::control::cpzero;
+use crate::emulator::{EmulationEvent, Emulator};
+use crate::memory::Memory;
+use crate::util::error::RmipsError;
+use crate::Address;
 
 impl Target for Emulator {
-    type Arch = arch::mips::Mips;
+    type Arch = arch::mips::MipsWithDsp;
     type Error = RmipsError;
 
     fn base_ops(&mut self) -> BaseOps<Self::Arch, Self::Error> {
@@ -34,11 +39,11 @@ impl SingleThreadOps for Emulator {
         &mut self,
         action: ResumeAction,
         check_gdb_interrupt: &mut dyn FnMut() -> bool,
-    ) -> Result<StopReason<u32>, Self::Error> {
+    ) -> Result<StopReason<Address>, Self::Error> {
         let event = match action {
             ResumeAction::Step => match self.step()? {
                 EmulationEvent::Step => return Ok(StopReason::DoneStep),
-                e => e,
+                event => event,
             },
             ResumeAction::Continue => {
                 let mut cycles = 0;
@@ -74,34 +79,40 @@ impl SingleThreadOps for Emulator {
 
     fn read_registers(
         &mut self,
-        regs: &mut arch::mips::reg::MipsCoreRegs<u32>,
+        regs: &mut <Self::Arch as Arch>::Registers,
     ) -> TargetResult<(), Self> {
-        regs.r = self.cpu.reg;
-        regs.lo = self.cpu.low;
-        regs.hi = self.cpu.high;
-        regs.pc = self.cpu.pc;
+        regs.core.r = self.cpu.reg;
+        regs.core.lo = self.cpu.low;
+        regs.core.hi = self.cpu.high;
+        regs.core.pc = self.cpu.pc;
+        regs.core.cp0.status = self.cpu.cpzero.reg[cpzero::STATUS];
+        regs.core.cp0.badvaddr = self.cpu.cpzero.reg[cpzero::BADVADDR];
+        regs.core.cp0.cause = self.cpu.cpzero.reg[cpzero::CAUSE];
         Ok(())
     }
 
     fn write_registers(
         &mut self,
-        regs: &arch::mips::reg::MipsCoreRegs<u32>,
+        regs: &<Self::Arch as Arch>::Registers,
     ) -> TargetResult<(), Self> {
-        self.cpu.reg = regs.r;
-        self.cpu.low = regs.lo;
-        self.cpu.high = regs.hi;
-        self.cpu.pc = regs.pc;
+        self.cpu.reg = regs.core.r;
+        self.cpu.low = regs.core.lo;
+        self.cpu.high = regs.core.hi;
+        self.cpu.pc = regs.core.pc;
+        self.cpu.cpzero.reg[cpzero::STATUS] = regs.core.cp0.status;
+        self.cpu.cpzero.reg[cpzero::BADVADDR] = regs.core.cp0.badvaddr;
+        self.cpu.cpzero.reg[cpzero::CAUSE] = regs.core.cp0.cause;
         Ok(())
     }
 
-    fn read_register(&mut self, reg_id: MipsRegId, dst: &mut [u8]) -> TargetResult<(), Self> {
+    fn read_register(&mut self, reg_id: MipsRegId<u32>, dst: &mut [u8]) -> TargetResult<(), Self> {
         let w = match reg_id {
             MipsRegId::Gpr(i) => self.cpu.reg[i as usize],
-            MipsRegId::Status => self.cpu.cpzero.status,
+            MipsRegId::Status => self.cpu.cpzero.reg[cpzero::STATUS],
             MipsRegId::Lo => self.cpu.low,
             MipsRegId::Hi => self.cpu.high,
-            MipsRegId::Badvaddr => self.cpu.cpzero.badvaddr,
-            MipsRegId::Cause => self.cpu.cpzero.cause,
+            MipsRegId::Badvaddr => self.cpu.cpzero.reg[cpzero::BADVADDR],
+            MipsRegId::Cause => self.cpu.cpzero.reg[cpzero::CAUSE],
             MipsRegId::Pc => self.cpu.pc,
             // MipsRegId::Fpr(i) => todo!(),
             // MipsRegId::Fcsr => todo!(),
@@ -113,18 +124,16 @@ impl SingleThreadOps for Emulator {
         Ok(())
     }
 
-    fn write_register(&mut self, reg_id: MipsRegId, value: &[u8]) -> TargetResult<(), Self> {
-        let w = u32::from_le_bytes(
-            value.try_into().unwrap(), // .map_err(|_| TargetError::Fatal("invalid data"))?,
-        );
+    fn write_register(&mut self, reg_id: MipsRegId<u32>, value: &[u8]) -> TargetResult<(), Self> {
+        let w = u32::from_le_bytes(value.try_into().expect("invalid write register data"));
 
         match reg_id {
             MipsRegId::Gpr(i) => self.cpu.reg[i as usize] = w,
-            MipsRegId::Status => self.cpu.cpzero.status = w,
+            MipsRegId::Status => self.cpu.cpzero.reg[cpzero::STATUS] = w,
             MipsRegId::Lo => self.cpu.low = w,
             MipsRegId::Hi => self.cpu.high = w,
-            MipsRegId::Badvaddr => self.cpu.cpzero.badvaddr = w,
-            MipsRegId::Cause => self.cpu.cpzero.cause = w,
+            MipsRegId::Badvaddr => self.cpu.cpzero.reg[cpzero::BADVADDR] = w,
+            MipsRegId::Cause => self.cpu.cpzero.reg[cpzero::CAUSE] = w,
             MipsRegId::Pc => self.cpu.pc = w,
             // MipsRegId::Fpr(i) => todo!() = w,
             // MipsRegId::Fcsr => todo!() = w,
@@ -135,15 +144,15 @@ impl SingleThreadOps for Emulator {
     }
 
     fn read_addrs(&mut self, start_address: u32, data: &mut [u8]) -> TargetResult<(), Self> {
-        info!(
-            "[gdb::read_addrs] Read data from start_address: 0x{:08x}",
-            start_address
-        );
-
         for (address, value) in (start_address..).zip(data.iter_mut()) {
             let address = self.cpu.cpzero.translate(address);
-            info!("GDB reading from address: {:08x}, {:x}", address, value);
-            *value = self.memory.fetch_byte(address)?
+            *value = match self.bus.fetch_byte(address) {
+                Ok(v) => v,
+                Err(err) => {
+                    error!("GDB failed to access memory: {}", err);
+                    return Err(TargetError::NonFatal);
+                }
+            };
         }
         Ok(())
     }
@@ -151,8 +160,10 @@ impl SingleThreadOps for Emulator {
     fn write_addrs(&mut self, start_address: u32, data: &[u8]) -> TargetResult<(), Self> {
         for (address, value) in (start_address..).zip(data.iter().copied()) {
             let address = self.cpu.cpzero.translate(address);
-            info!("GDB writing {:x} to address: {:08x}", value, address);
-            self.memory.store_byte(address, value)?
+            if let Err(err) = self.bus.store_byte(address, value) {
+                error!("GDB failed to access memory: {}", err);
+                return Err(TargetError::NonFatal);
+            };
         }
         Ok(())
     }
@@ -165,17 +176,22 @@ impl SwBreakpoint for Emulator {
     }
 
     fn remove_sw_breakpoint(&mut self, address: u32) -> TargetResult<bool, Self> {
-        match self.breakpoints.iter().position(|x| *x == address) {
-            None => return Ok(false),
-            Some(pos) => self.breakpoints.remove(pos),
-        };
-
-        Ok(true)
+        Ok(match self.breakpoints.iter().position(|x| *x == address) {
+            Some(pos) => {
+                self.breakpoints.remove(pos);
+                true
+            }
+            None => false,
+        })
     }
 }
 
 impl HwWatchpoint for Emulator {
-    fn add_hw_watchpoint(&mut self, address: u32, kind: WatchKind) -> TargetResult<bool, Self> {
+    fn add_hw_watchpoint(
+        &mut self,
+        address: <Self::Arch as Arch>::Usize,
+        kind: WatchKind,
+    ) -> TargetResult<bool, Self> {
         match kind {
             WatchKind::Write => self.watchpoints.push(address),
             WatchKind::Read => self.watchpoints.push(address),
@@ -185,10 +201,14 @@ impl HwWatchpoint for Emulator {
         Ok(true)
     }
 
-    fn remove_hw_watchpoint(&mut self, address: u32, kind: WatchKind) -> TargetResult<bool, Self> {
+    fn remove_hw_watchpoint(
+        &mut self,
+        address: <Self::Arch as Arch>::Usize,
+        kind: WatchKind,
+    ) -> TargetResult<bool, Self> {
         let pos = match self.watchpoints.iter().position(|x| *x == address) {
-            None => return Ok(false),
             Some(pos) => pos,
+            None => return Ok(false),
         };
 
         match kind {
@@ -198,11 +218,5 @@ impl HwWatchpoint for Emulator {
         };
 
         Ok(true)
-    }
-}
-
-impl From<RmipsError> for TargetError<RmipsError> {
-    fn from(e: RmipsError) -> Self {
-        TargetError::Fatal(e)
     }
 }

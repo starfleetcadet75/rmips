@@ -1,9 +1,10 @@
 use crate::memory::Memory;
-use crate::util::error::RmipsError;
+use crate::util::error::Result;
+use crate::Address;
 
 macro_rules! impl_memsniff_r {
     ($fn:ident, $ret:ty) => {
-        fn $fn(&mut self, address: u32) -> Result<$ret, RmipsError> {
+        fn $fn(&mut self, address: Address) -> Result<$ret> {
             let ret = self.memory.$fn(address)?;
             if self.addresses.contains(&address) {
                 (self.on_access)(Access {
@@ -20,7 +21,7 @@ macro_rules! impl_memsniff_r {
 
 macro_rules! impl_memsniff_w {
     ($fn:ident, $data:ty) => {
-        fn $fn(&mut self, address: u32, data: $data) -> Result<(), RmipsError> {
+        fn $fn(&mut self, address: Address, data: $data) -> Result<()> {
             self.memory.$fn(address, data)?;
             if self.addresses.contains(&address) {
                 (self.on_access)(Access {
@@ -42,19 +43,19 @@ pub enum AccessKind {
 
 pub struct Access {
     pub kind: AccessKind,
-    pub address: u32,
+    pub address: Address,
     pub data: u32,
     pub len: usize,
 }
 
 pub struct Monitor<'a, M: Memory, F: FnMut(Access)> {
     memory: &'a mut M,
-    addresses: &'a [u32],
+    addresses: &'a [Address],
     on_access: F,
 }
 
 impl<'a, M: Memory, F: FnMut(Access)> Monitor<'a, M, F> {
-    pub fn new(memory: &'a mut M, addresses: &'a [u32], on_access: F) -> Monitor<'a, M, F> {
+    pub fn new(memory: &'a mut M, addresses: &'a [Address], on_access: F) -> Monitor<'a, M, F> {
         Monitor {
             memory,
             addresses,

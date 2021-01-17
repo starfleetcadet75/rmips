@@ -1,6 +1,8 @@
-/target
-/.idea
+target/
 **/*.rs.bk
-Cargo.lock
+**/*.sw[po]
+**/*.orig
 **/*.o
-**/*.bin
+**/Cargo.lock
+/.idea
+/extra

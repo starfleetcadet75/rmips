@@ -18,10 +18,10 @@ pub struct Opts {
     #[clap(short, long)]
     pub debug: bool,
     /// TCP port for the GDB stub to listen on.
-    #[clap(long, default_value = "9001")]
+    #[clap(short = 'p', long = "port", default_value = "9001")]
     pub debugport: u16,
     /// IP address for the GDB stub to listen on.
-    #[clap(long, default_value = "127.0.0.1")]
+    #[clap(short = 'i', long = "ip", default_value = "127.0.0.1")]
     pub debugip: String,
     /// Interpret the ROM as a big-endian binary.
     #[clap(long)]
@@ -32,15 +32,6 @@ pub struct Opts {
     /// Disassemble and print instructions as they are executed.
     #[clap(long)]
     pub instrdump: bool,
-    /// Controls whether the CPU registers and stack will be dumped after every instruction.
-    #[clap(long)]
-    pub dumpcpu: bool,
-    /// Dumps the CPU registers and stack on program halt.
-    #[clap(long)]
-    pub haltdumpcpu: bool,
-    /// Dumps the CP0 registers and the contents of the TLB on program halt.
-    #[clap(long)]
-    pub haltdumpcp0: bool,
     /// Do not map the halt device into physical memory.
     #[clap(long)]
     pub nohaltdevice: bool,
@@ -49,7 +40,7 @@ pub struct Opts {
 impl Default for Opts {
     fn default() -> Self {
         Opts {
-            romfile: String::new(),
+            romfile: String::from(""),
             verbose: 0,
             loadaddress: 3217031168,
             memsize: 1048576,
@@ -59,9 +50,6 @@ impl Default for Opts {
             bigendian: false,
             memmap: false,
             instrdump: false,
-            dumpcpu: false,
-            haltdumpcpu: false,
-            haltdumpcp0: false,
             nohaltdevice: false,
         }
     }

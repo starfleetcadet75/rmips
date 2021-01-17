@@ -1,16 +1,52 @@
-use thiserror::Error;
+use std::fmt;
+use std::io;
 
-/// RmipsError enumerates all possible errors returned by this library.
-#[derive(Error, Debug)]
+use crate::Address;
+
+/// A type alias for `Result<T, RmipsError>`.
+pub type Result<T> = std::result::Result<T, RmipsError>;
+
+#[derive(Debug)]
 pub enum RmipsError {
-    #[error("Attempted to execute an invalid instruction: 0x{:08x}", .0)]
+    Io(io::Error),
+    MemoryRangeOverlap,
+    MemoryRead(Address),
+    MemoryWrite(Address),
+    UnmappedAddress(Address),
     InvalidInstruction(u32),
-    #[error("Attempted to access an invalid memory address: 0x{:08x}", .0)]
-    InvalidMemoryAccess(u32),
-    #[error("Attempted to access an unmapped range of memory: 0x{:08x}", .0)]
-    UnmappedMemoryAccess(u32),
-    #[error("Unable to map memory range: (base 0x{:08x} size 0x{:08x}) and (base 0x{:08x} size 0x{:08x})", .0, .1, .2, .3)]
-    MemoryMapping(u32, usize, u32, usize),
-    #[error(transparent)]
-    IOError(#[from] std::io::Error),
+}
+
+impl std::error::Error for RmipsError {}
+
+impl fmt::Display for RmipsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RmipsError::Io(err) => err.fmt(f),
+            RmipsError::MemoryRangeOverlap => {
+                write!(f, "New memory range overlaps an existing one")
+            }
+            RmipsError::MemoryRead(address) => {
+                write!(f, "Failed to read memory from 0x{:08x}", address)
+            }
+            RmipsError::MemoryWrite(address) => {
+                write!(f, "Failed to write memory to 0x{:08x}", address)
+            }
+            RmipsError::UnmappedAddress(address) => write!(
+                f,
+                "Address 0x{:08x} is not in a valid address space",
+                address
+            ),
+            RmipsError::InvalidInstruction(instr) => write!(
+                f,
+                "Attempted to execute an invalid instruction: 0x{:08x}",
+                instr
+            ),
+        }
+    }
+}
+
+impl From<io::Error> for RmipsError {
+    fn from(err: io::Error) -> RmipsError {
+        RmipsError::Io(err)
+    }
 }

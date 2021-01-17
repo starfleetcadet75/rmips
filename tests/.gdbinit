@@ -1,2 +1,2 @@
-file ./build/emptymain_le.bin
+file ./build/emptymain_le.elf
 target extended-remote :9001

@@ -1,19 +1,22 @@
-use anyhow::Result;
-use clap::derive::Clap;
-use human_panic::setup_panic;
-use log::LevelFilter;
-use rmips::emulator::Emulator;
-use rmips::util::opts::Opts;
-use simplelog::{CombinedLogger, TermLogger, TerminalMode, WriteLogger};
 use std::env;
 use std::fs::File;
+
+use anyhow::Result;
+use clap::Clap;
+use human_panic::setup_panic;
+use log::LevelFilter;
+use simplelog::{CombinedLogger, TermLogger, TerminalMode, WriteLogger};
+
+use rmips::emulator::Emulator;
+use rmips::util::opts::Opts;
 
 fn setup_logger(opts: &Opts) {
     let log_level = match opts.verbose {
         0 => LevelFilter::Error,
         1 => LevelFilter::Warn,
         2 => LevelFilter::Info,
-        3 | _ => LevelFilter::Debug,
+        3 => LevelFilter::Debug,
+        _ => LevelFilter::Trace,
     };
 
     // Writes all logging to a file and prints logging at the given level to the terminal output

@@ -1,40 +1,45 @@
-use crate::memory::range::Range;
-use crate::memory::Endian;
+use crate::devices::Device;
+use crate::util::error::{Result, RmipsError};
+use crate::Address;
 
-pub struct RAM {
-    endian: Endian,
+#[derive(Clone, Debug)]
+pub struct Ram {
     data: Vec<u8>,
-    base: u32,
 }
 
-impl RAM {
-    pub fn new(endian: Endian, memsize: usize, base: u32) -> Self {
-        RAM {
-            endian,
-            data: vec![0; memsize],
-            base,
+impl Ram {
+    pub fn new(size: usize) -> Self {
+        Self {
+            data: vec![0; size],
         }
     }
 }
 
-impl Range for RAM {
-    fn get_name(&self) -> &str {
-        "ram"
+impl Device for Ram {
+    fn debug_label(&self) -> String {
+        "RAM".to_owned()
     }
 
-    fn get_endian(&self) -> Endian {
-        self.endian
+    fn read(&mut self, address: Address, data: &mut [u8]) -> Result<()> {
+        for (i, v) in data.iter_mut().enumerate() {
+            *v = *self
+                .data
+                .get((address as usize) + i)
+                .ok_or(RmipsError::MemoryRead(address + (i as u32)))?;
+        }
+
+        Ok(())
     }
 
-    fn get_data(&self) -> &Vec<u8> {
-        &self.data
-    }
+    fn write(&mut self, address: Address, data: &[u8]) -> Result<()> {
+        for (i, v) in data.iter().enumerate() {
+            if let Some(elem) = self.data.get_mut((address as usize) + i) {
+                *elem = *v;
+            } else {
+                return Err(RmipsError::MemoryWrite(address + (i as u32)));
+            }
+        }
 
-    fn get_data_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.data
-    }
-
-    fn get_base(&self) -> u32 {
-        self.base
+        Ok(())
     }
 }

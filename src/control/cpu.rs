@@ -1,67 +1,14 @@
-use crate::cpu::cpzero::CPZero;
-use crate::cpu::{ExceptionCode, REG_ZERO};
-use crate::memory::Memory;
-use crate::util::error::RmipsError;
 use capstone::prelude::*;
 use log::{error, warn};
-use std::fmt;
 
-macro_rules! opcode {
-    ($instr:ident) => {
-        (($instr >> 26) & 0b0011_1111)
-    };
-}
+use crate::control::cpzero::CPZero;
+use crate::control::instruction::Instruction;
+use crate::control::{ExceptionCode, REG_ZERO};
+use crate::memory::Memory;
+use crate::util::error::{Result, RmipsError};
+use crate::Address;
 
-macro_rules! rs {
-    ($instr:ident) => {
-        (($instr >> 21) & 0b0001_1111) as usize
-    };
-}
-
-macro_rules! rt {
-    ($instr:ident) => {
-        (($instr >> 16) & 0b0001_1111) as usize
-    };
-}
-
-macro_rules! rd {
-    ($instr:ident) => {
-        (($instr >> 11) & 0b0001_1111) as usize
-    };
-}
-
-macro_rules! immed {
-    ($instr:ident) => {
-        ($instr & 0xffff)
-    };
-}
-
-// Must start as a signed value before sign-extending to a u32
-macro_rules! simmed {
-    ($instr:ident) => {
-        ($instr & 0xffff) as i16 as u32
-    };
-}
-
-macro_rules! shamt {
-    ($instr:ident) => {
-        (($instr >> 6) & 0b0001_1111)
-    };
-}
-
-macro_rules! funct {
-    ($instr:ident) => {
-        ($instr & 0b0011_1111)
-    };
-}
-
-macro_rules! jumptarget {
-    ($instr:ident) => {
-        $instr & 0x03ffffff
-    };
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum DelayState {
     /// No delay slot handling needs to occur
     Normal,
@@ -80,11 +27,11 @@ impl Default for DelayState {
 #[derive(Default)]
 pub struct Cpu {
     /// Program counter
-    pub pc: u32,
+    pub pc: Address,
     /// General-purpose registers
     pub reg: [u32; 32],
     /// The current instruction
-    pub instruction: u32,
+    pub instruction: Instruction,
     /// High division result register
     pub high: u32,
     /// Low division result register
@@ -92,7 +39,7 @@ pub struct Cpu {
     /// Indicates whether the current instruction is in a delay slot
     pub delay_state: DelayState,
     /// Saved target address for delayed branches
-    pub delay_pc: u32,
+    pub delay_pc: Address,
     /// The System Control Coprocessor (CP0)
     pub cpzero: CPZero,
     /// Capstone instance for disassembly
@@ -101,24 +48,24 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new(enable_disassembler: bool) -> Self {
-        let mut cpu: Cpu = Default::default();
-
         // Create an instance of Capstone to use as a disassembler if requested
-        cpu.disassembler = match enable_disassembler {
-            true => Some(
-                Capstone::new()
-                    .mips()
-                    .mode(arch::mips::ArchMode::Mips32R6)
-                    .detail(true)
-                    .build()
-                    .expect("Capstone failed to initialize"),
-            ),
-            false => None,
-        };
-        cpu
+        Cpu {
+            disassembler: match enable_disassembler {
+                true => Some(
+                    Capstone::new()
+                        .mips()
+                        .mode(arch::mips::ArchMode::Mips32R6)
+                        .detail(true)
+                        .build()
+                        .expect("Capstone failed to initialize"),
+                ),
+                false => None,
+            },
+            ..Default::default()
+        }
     }
 
-    /// Resets the `Cpu` state to the initial startup values
+    /// Resets the `Cpu` state to initial startup values
     pub fn reset(&mut self) {
         self.reg[REG_ZERO] = 0;
         self.pc = 0xbfc00000;
@@ -126,40 +73,42 @@ impl Cpu {
     }
 
     /// Decodes and executes the next instruction according to the value in the program counter
-    pub fn step(&mut self, memory: &mut impl Memory) -> Result<(), RmipsError> {
+    pub fn step(&mut self, memory: &mut impl Memory) -> Result<()> {
         // Get the physical address of the next instruction
         let phys_pc = self.cpzero.translate(self.pc);
 
         // Fetch the next instruction from memory
-        self.instruction = memory.fetch_word(phys_pc)?;
+        self.instruction = Instruction(memory.fetch_word(phys_pc)?);
 
         // Disassemble the instruction if enabled by the user
         if let Some(disassembler) = &self.disassembler {
-            let code = self.instruction.to_le_bytes();
+            let code = self.instruction.0.to_le_bytes();
             if let Ok(instr) = disassembler.disasm_count(&code, self.pc.into(), 1) {
-                // Will always be one instruction
-                for i in instr.iter() {
-                    println!(
-                        "PC=0x{:08x} [{:08x}]\t{:08x}  {} {}",
-                        self.pc,
-                        phys_pc,
-                        self.instruction,
-                        i.mnemonic().expect("capstone errored"),
-                        i.op_str().expect("capstone errored")
-                    );
-                }
+                // Should always be one instruction
+                let i = instr
+                    .iter()
+                    .next()
+                    .ok_or(RmipsError::InvalidInstruction(self.instruction.0))?;
+                println!(
+                    "PC=0x{:08x} [{:08x}]\t{:08x}  {} {}",
+                    self.pc,
+                    phys_pc,
+                    self.instruction.0,
+                    i.mnemonic().expect("capstone errored"),
+                    i.op_str().expect("capstone errored")
+                );
             } else {
                 println!(
-                    "PC=0x{:08x} [{:08x}]\t{:08x}  Disassembly Failed",
-                    self.pc, phys_pc, self.instruction,
+                    "PC=0x{:08x} [{:08x}]\tDisassembly Failed:\n{:?}",
+                    self.pc, phys_pc, self.instruction
                 );
             }
         }
 
         // Decode and emulate the instruction
         let instr = self.instruction;
-        match opcode!(instr) {
-            0x00 => match funct!(instr) {
+        match instr.opcode() {
+            0x00 => match instr.funct() {
                 0x00 => self.sll_emulate(instr),
                 0x02 => self.srl_emulate(instr),
                 0x03 => self.sra_emulate(instr),
@@ -167,7 +116,7 @@ impl Cpu {
                 0x06 => self.srlv_emulate(instr),
                 0x07 => self.srav_emulate(instr),
                 0x08 => self.jr_emulate(instr),
-                0x09 => self.jalr_emulate(instr, self.pc),
+                0x09 => self.jalr_emulate(instr),
                 0x0c => self.syscall_emulate(),
                 0x0d => self.break_emulate(),
                 0x10 => self.mfhi_emulate(instr),
@@ -188,21 +137,21 @@ impl Cpu {
                 0x27 => self.nor_emulate(instr),
                 0x2a => self.slt_emulate(instr),
                 0x2b => self.sltu_emulate(instr),
-                _ => self.ri_emulate(),
+                _ => self.ri_emulate(instr),
             },
-            0x01 => match rt!(instr) {
+            0x01 => match instr.rt() {
                 0 => self.bltz_emulate(instr),
                 1 => self.bgez_emulate(instr),
                 16 => self.bltzal_emulate(instr),
                 17 => self.bgezal_emulate(instr),
-                _ => self.ri_emulate(),
+                _ => self.ri_emulate(instr),
             },
-            0x02 => self.j_emulate(instr, self.pc),
-            0x03 => self.jal_emulate(instr, self.pc),
-            0x04 => self.beq_emulate(instr, self.pc),
-            0x05 => self.bne_emulate(instr, self.pc),
-            0x06 => self.blez_emulate(instr, self.pc),
-            0x07 => self.bgtz_emulate(instr, self.pc),
+            0x02 => self.j_emulate(instr),
+            0x03 => self.jal_emulate(instr),
+            0x04 => self.beq_emulate(instr),
+            0x05 => self.bne_emulate(instr),
+            0x06 => self.blez_emulate(instr),
+            0x07 => self.bgtz_emulate(instr),
             0x08 => self.addi_emulate(instr),
             0x09 => self.addiu_emulate(instr),
             0x0a => self.slti_emulate(instr),
@@ -213,10 +162,10 @@ impl Cpu {
             0x0f => self.lui_emulate(instr),
             0x10 => {
                 // Handle CP0 instructions
-                let rs = rs!(instr);
+                let rs = instr.rs();
 
                 if 15 < rs {
-                    match funct!(instr) {
+                    match instr.funct() {
                         1 => self.cpzero.tlbr_emulate(instr),
                         2 => self.cpzero.tlbwi_emulate(instr),
                         6 => self.cpzero.tlbwr_emulate(instr),
@@ -233,9 +182,9 @@ impl Cpu {
                     }
                 }
             }
-            0x11 => self.coprocessor_unimpl(1, instr, self.pc),
-            0x12 => self.coprocessor_unimpl(2, instr, self.pc),
-            0x13 => self.coprocessor_unimpl(3, instr, self.pc),
+            0x11 => self.coprocessor_unimpl(1, instr),
+            0x12 => self.coprocessor_unimpl(2, instr),
+            0x13 => self.coprocessor_unimpl(3, instr),
             0x20 => self.lb_emulate(memory, instr)?,
             0x21 => self.lh_emulate(instr),
             0x22 => self.lwl_emulate(instr),
@@ -254,7 +203,7 @@ impl Cpu {
             0x38 => self.swc1_emulate(instr),
             0x39 => self.swc2_emulate(instr),
             0x3a => self.swc3_emulate(instr),
-            _ => self.ri_emulate(),
+            _ => self.ri_emulate(instr),
         }
 
         // Register $r0 is hardwired to a value of zero
@@ -277,14 +226,17 @@ impl Cpu {
                 self.delay_state = DelayState::Normal;
             }
         }
+
         Ok(())
     }
 
-    pub fn coprocessor_unimpl(&mut self, coprocno: u32, instr: u32, pc: u32) {
+    pub fn coprocessor_unimpl(&mut self, coprocno: u32, instr: Instruction) {
         if self.cpzero.coprocessor_usable(coprocno) {
             error!(
                 "CP{} instruction {:x} is not implemented at PC={:08x}",
-                coprocno, instr, pc
+                coprocno,
+                instr.opcode(),
+                self.pc
             )
         }
 
@@ -301,25 +253,5 @@ impl Cpu {
         }
 
         self.cpzero.exception(self.pc, exception_code);
-    }
-}
-
-impl fmt::Display for Cpu {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = (1..=31)
-            .map(|r| {
-                format!(
-                    "${:02} = 0x{:08x} {:13}",
-                    r,
-                    self.reg[r],
-                    format!("({})", self.reg[r] as i32)
-                )
-            })
-            .collect::<Vec<_>>()
-            .chunks(4)
-            .map(|chunk| chunk.join(" "))
-            .collect::<Vec<_>>()
-            .join("\n");
-        write!(f, "{} $pc = 0x{:08x}", res, self.pc)
     }
 }

@@ -6,7 +6,7 @@ RMIPS is a MIPS R3000 virtual machine simulator written in Rust and based on [VM
 
 ## Install
 
-Check the releases page for precompiled binaries for your platform.
+Check the releases page for precompiled binaries.
 
 To build from source, first install [Rust](https://www.rust-lang.org/learn/get-started) then run the following:
 
@@ -18,15 +18,38 @@ cargo build --release
 
 ## Development
 
-Install the `gcc-mips-linux-gnu` Ubuntu package in order to target MIPS using the GNU C compiler.
-The `tests` directory can be used as a starting point for creating new programs.
+Install the `gcc-mips-linux-gnu` package in order to cross-compile for MIPS targets.
+The `tests` directory should be used as a starting point for new programs.
 
-## Debugging
+## GDB Support
 
-RMIPS exposes a GDB stub that can be used for debugging emulated programs over a local TCP connection.
-Start RMIPS with the `--debug` flag to enable the GDB server and then connect to it using `gdb-multiarch`.
-Use GDB's `file` command to load data from the program.bin file and not program.rom.
-The ROM file does not contain the debugging information that GDB requires.
+RMIPS exposes a GDB stub that can be used for debugging emulated programs.
+Start RMIPS with the `--debug` flag to enable the GDB server:
+
+```bash
+$ cargo run ./tests/build/emptymain_le.rom --debug
+Interpreting ROM file as Little-Endian
+Mapping ROM image (./tests/build/emptymain_le.rom, 222 words) to physical address 0x1fc00000
+Mapping RAM module (1024KB) to physical address 0x00000000
+Mapping Halt Device to physical address 0x01010024
+Mapping Test Device to physical address 0x02010000
+
+*************[ RESET ]*************
+
+Waiting for a GDB connection on "127.0.0.1:9001"...
+```
+
+You can then connect to it from another shell with `gdb-multiarch`:
+
+```bash
+$ gdb-multiarch emptymain_le.elf
+(gdb) target remote 127.0.0.1:9001
+(gdb) break begin
+(gdb) c
+```
+
+*Note:* The ROM file does not contain any debugging information.
+Use the ELF program with GDB so that it can show source information.
 
 ## References
 

@@ -1,86 +1,95 @@
-use crate::cpu::cpu::Cpu;
-use crate::cpu::KSEG1;
-use crate::devices::halt_device::{HaltDevice, HALTDEV_BASE_ADDRESS};
-use crate::devices::test_device::{TestDevice, TESTDEV_BASE_ADDRESS};
-use crate::memory::mapper::Mapper;
-use crate::memory::monitor::{AccessKind, Monitor};
-use crate::memory::ram::RAM;
-use crate::memory::range::Range;
-use crate::memory::rom::ROM;
-use crate::memory::Endian;
-use crate::util::error::RmipsError;
-use crate::util::opts::Opts;
-use gdbstub::{DisconnectReason, GdbStub, GdbStubError};
 use std::net::{TcpListener, TcpStream};
+
+use gdbstub::GdbStub;
+use log::{error, info};
+
+use crate::control::cpu::Cpu;
+use crate::control::KSEG1;
+use crate::devices::halt_device;
+use crate::devices::test_device;
+use crate::memory::bus::Bus;
+use crate::memory::monitor::{AccessKind, Monitor};
+use crate::memory::ram::Ram;
+use crate::memory::rom::Rom;
+use crate::util::error::Result;
+use crate::util::opts::Opts;
+use crate::{Address, Endian};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum EmulationEvent {
     Step,
     Halted,
     Breakpoint,
-    WatchWrite(u32),
-    WatchRead(u32),
+    WatchWrite(Address),
+    WatchRead(Address),
 }
 
 pub struct Emulator {
-    pub cpu: Cpu,
-    pub(crate) memory: Mapper,
-    pub(crate) breakpoints: Vec<u32>,
-    pub(crate) watchpoints: Vec<u32>,
-    opts: Opts,
+    pub(crate) cpu: Cpu,
+    pub(crate) bus: Bus,
+    pub(crate) breakpoints: Vec<Address>,
+    pub(crate) watchpoints: Vec<Address>,
     instruction_count: usize,
+    opts: Opts,
 }
 
 impl Emulator {
-    pub fn new(opts: Opts) -> Result<Self, RmipsError> {
+    pub fn new(opts: Opts) -> Result<Emulator> {
+        let _endian = match opts.bigendian {
+            true => {
+                println!("Interpreting ROM file as Big-Endian");
+                Endian::Big
+            }
+            false => {
+                println!("Interpreting ROM file as Little-Endian");
+                Endian::Little
+            }
+        };
+
         // Setup the different machine components
         // let intc = IntCtrl::new();
-        let mut memory = Mapper::new();
+        let mut bus = Bus::new();
 
         // Setup and connect the various devices
-        Self::setup_rom(&opts, &mut memory)?;
-        Self::setup_ram(&opts, &mut memory)?;
-        Self::setup_haltdevice(&opts, &mut memory)?;
-        // Self::setup_clock()?;
-        Self::setup_testdevice(&opts, &mut memory)?;
+        setup_rom(&opts, &mut bus)?;
+        setup_ram(&opts, &mut bus)?;
+        setup_haltdevice(&opts, &mut bus)?;
+        // setup_clock()?;
+        setup_testdevice(&mut bus)?;
 
         let mut cpu = Cpu::new(opts.instrdump);
         cpu.reset();
 
-        Ok(Emulator {
+        Ok(Self {
             cpu,
-            memory,
-            breakpoints: Vec::new(),
-            watchpoints: Vec::new(),
-            opts,
+            bus,
+            breakpoints: Default::default(),
+            watchpoints: Default::default(),
             instruction_count: 0,
+            opts,
         })
     }
 
-    pub fn run(&mut self) -> Result<(), RmipsError> {
-        // Optionally display the memory map on startup
-        if self.opts.memmap {
-            println!("*************[ MEMORY MAP ]*************");
-            println!("{}", self.memory);
-        }
-
+    pub fn run(&mut self) -> Result<()> {
         println!("\n*************[ RESET ]*************\n");
 
+        // Optionally start the GDB server before the program
         if self.opts.debug {
-            let connection = Self::wait_for_tcp(&self.opts.debugip, self.opts.debugport)?;
+            let connection = wait_for_tcp(&self.opts.debugip, self.opts.debugport)?;
             let mut debugger = GdbStub::new(connection);
 
             match debugger.run(self) {
-                disconnect_reason => match disconnect_reason {
-                    Ok(DisconnectReason::Disconnect) => {
-                        // Run the program to completion
-                        self.run_until_halt()?;
-                    }
-                    Ok(DisconnectReason::TargetHalted) => println!("Target halted"),
-                    Ok(DisconnectReason::Kill) => println!("GDB sent a kill command"),
-                    Err(GdbStubError::TargetError(err)) => return Err(err),
-                    Err(err) => eprintln!("{}", err),
-                },
+                Ok(reason) => {
+                    info!("GDB session closed: {:?}", reason);
+                }
+                Err(err) => {
+                    error!("Error occurred in GDB session: {}", err);
+                }
+            }
+
+            // Resume execution when the GDB session is disconnected
+            if let Err(err) = self.run_until_halt() {
+                error!("Failed to resume emulation after GDB disconnected: {}", err);
             }
         } else {
             self.run_until_halt()?;
@@ -90,44 +99,27 @@ impl Emulator {
     }
 
     // Steps the `Cpu` state until a halt event is triggered
-    fn run_until_halt(&mut self) -> Result<(), RmipsError> {
+    fn run_until_halt(&mut self) -> Result<()> {
         loop {
             if self.step()? == EmulationEvent::Halted {
-                // Dumps the registers and stack on program halt
-                if self.opts.haltdumpcpu {
-                    println!("*************[ CPU State ]*************");
-                    println!("{}", self.cpu);
-                }
-
-                // Dumps the CP0 registers and the contents of the TLB on program halt
-                if self.opts.haltdumpcp0 {
-                    println!("*************[ CP0 State ]*************");
-                    println!("{}", self.cpu.cpzero);
-                }
-
                 println!("Executed {} instructions", self.instruction_count);
                 println!("\n*************[ HALT ]*************\n");
                 break;
             }
         }
+
         Ok(())
     }
 
-    pub fn step(&mut self) -> Result<EmulationEvent, RmipsError> {
+    pub fn step(&mut self) -> Result<EmulationEvent> {
         let mut hit_watchpoint = None;
 
-        let mut monitor = Monitor::new(&mut self.memory, &self.watchpoints, |access| {
+        let mut monitor = Monitor::new(&mut self.bus, &self.watchpoints, |access| {
             hit_watchpoint = Some(access)
         });
 
         self.cpu.step(&mut monitor)?;
         self.instruction_count += 1;
-
-        // Dump register states after each instruction if requested
-        if self.opts.dumpcpu {
-            println!("*************[ CPU State ]*************");
-            println!("{}", self.cpu);
-        }
 
         if let Some(access) = hit_watchpoint {
             // TODO: Do we need to set PC back one instruction here?
@@ -146,96 +138,80 @@ impl Emulator {
             Ok(EmulationEvent::Step)
         }
     }
+}
 
-    fn setup_rom(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
-        let endian = match opts.bigendian {
-            true => {
-                println!("Interpreting ROM file as Big-Endian");
-                Endian::Big
-            }
-            false => {
-                println!("Interpreting ROM file as Little-Endian");
-                Endian::Little
-            }
-        };
+fn setup_rom(opts: &Opts, bus: &mut Bus) -> Result<()> {
+    // Translate the provided virtual load address to a physical address
+    // Initialization code should be located in kseg1 since it is non-cacheable
+    let loadaddress = opts.loadaddress;
+    if loadaddress < KSEG1 {
+        panic!("Provided load address must be greater than 0xa0000000");
+    }
+    let paddress = loadaddress - KSEG1;
 
-        // Translate the provided virtual load address to a physical address
-        let loadaddress = opts.loadaddress;
-        if loadaddress < KSEG1 {
-            panic!("Provided load address must be greater than 0xa0000000");
-        }
-        let paddress = loadaddress - KSEG1;
+    // Load the provided ROM file
+    let rom_path = &opts.romfile;
+    let rom = Rom::new(rom_path.to_string())?;
+    let size = rom.size();
 
-        // Load the provided ROM file
-        let rom_path = &opts.romfile;
-        let rom = ROM::new(endian, rom_path, paddress)?;
+    println!(
+        "Mapping ROM image ({}, {} words) to physical address 0x{:08x}",
+        rom_path,
+        size / 4,
+        paddress
+    );
+
+    bus.register(Box::new(rom), paddress, size)
+}
+
+// Create a new RAM module to install at physical address zero
+fn setup_ram(opts: &Opts, bus: &mut Bus) -> Result<()> {
+    let paddress = 0;
+    let ram = Ram::new(opts.memsize);
+
+    println!(
+        "Mapping RAM module ({}KB) to physical address 0x{:08x}",
+        opts.memsize / 1024,
+        paddress
+    );
+
+    bus.register(Box::new(ram), paddress, opts.memsize)
+}
+
+fn setup_haltdevice(opts: &Opts, bus: &mut Bus) -> Result<()> {
+    use halt_device::*;
+
+    if !opts.nohaltdevice {
+        let paddress = BASE_ADDRESS;
+        let haltdev = HaltDevice::new();
 
         println!(
-            "Mapping ROM image ({}, {} words) to physical address 0x{:08x}",
-            rom_path,
-            rom.get_size() / 4,
-            paddress
+            "Mapping Halt Device to physical address 0x{:08x}",
+            BASE_ADDRESS
         );
-        physmem.add_range(Box::new(rom))
-    }
-
-    // Create a new RAM module to install at physical address zero
-    fn setup_ram(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
-        let endian = match opts.bigendian {
-            true => Endian::Big,
-            false => Endian::Little,
-        };
-
-        let paddress = 0;
-        let ram = RAM::new(endian, opts.memsize, paddress);
-
-        println!(
-            "Mapping RAM module ({}KB) to physical address 0x{:08x}",
-            ram.get_size() / 1024,
-            paddress
-        );
-        physmem.add_range(Box::new(ram))
-    }
-
-    fn setup_haltdevice(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
-        if !opts.nohaltdevice {
-            let endian = match opts.bigendian {
-                true => Endian::Big,
-                false => Endian::Little,
-            };
-
-            let halt_device = HaltDevice::new(endian);
-            println!(
-                "Mapping Halt Device to physical address 0x{:08x}",
-                HALTDEV_BASE_ADDRESS
-            );
-            physmem.add_range(Box::new(halt_device))?;
-        }
+        bus.register(Box::new(haltdev), paddress, DATA_LEN)
+    } else {
         Ok(())
     }
+}
 
-    fn setup_testdevice(opts: &Opts, physmem: &mut Mapper) -> Result<(), RmipsError> {
-        let endian = match opts.bigendian {
-            true => Endian::Big,
-            false => Endian::Little,
-        };
+fn setup_testdevice(bus: &mut Bus) -> Result<()> {
+    use test_device::*;
 
-        let testdev = TestDevice::new(endian);
-        println!(
-            "Mapping Test Device to physical address 0x{:08x}",
-            TESTDEV_BASE_ADDRESS
-        );
-        physmem.add_range(Box::new(testdev))
-    }
+    let paddress = BASE_ADDRESS;
+    let testdev = TestDevice::new();
 
-    fn wait_for_tcp(ip: &str, port: u16) -> Result<TcpStream, RmipsError> {
-        let sockaddr = format!("{}:{}", ip, port);
-        println!("Waiting for a GDB connection on {:?}...", sockaddr);
+    println!("Mapping Test Device to physical address 0x{:08x}", paddress);
+    bus.register(Box::new(testdev), paddress, DATA_LEN)
+}
 
-        let sock = TcpListener::bind(sockaddr)?;
-        let (stream, address) = sock.accept()?;
-        println!("Debugger connected from {}", address);
+fn wait_for_tcp(ip: &str, port: u16) -> Result<TcpStream> {
+    let sockaddr = format!("{}:{}", ip, port);
+    let sock = TcpListener::bind(sockaddr.clone())?;
+    println!("Waiting for a GDB connection on {:?}...", sockaddr);
 
-        Ok(stream)
-    }
+    let (stream, address) = sock.accept()?;
+    println!("Debugger connected from {}", address);
+
+    Ok(stream)
 }
