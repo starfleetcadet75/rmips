@@ -120,7 +120,7 @@ impl Cpu {
                 0x08 => self.jr_emulate(instr),
                 0x09 => self.jalr_emulate(instr),
                 0x0c => self.syscall_emulate(),
-                0x0d => self.break_emulate(),
+                0x0d => self.break_emulate()?,
                 0x10 => self.mfhi_emulate(instr),
                 0x11 => self.mthi_emulate(instr),
                 0x12 => self.mflo_emulate(instr),

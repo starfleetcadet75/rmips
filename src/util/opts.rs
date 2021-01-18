@@ -35,6 +35,9 @@ pub struct Opts {
     /// Do not map the halt device into physical memory.
     #[clap(long)]
     pub nohaltdevice: bool,
+    /// Do not halt the program when encountering a break instruction.
+    #[clap(long)]
+    pub nohaltbreak: bool,
 }
 
 impl Default for Opts {
@@ -51,6 +54,7 @@ impl Default for Opts {
             memmap: false,
             instrdump: false,
             nohaltdevice: false,
+            nohaltbreak: false,
         }
     }
 }

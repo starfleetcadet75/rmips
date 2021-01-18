@@ -6,7 +6,7 @@ use crate::control::cpu::{Cpu, DelayState};
 use crate::control::instruction::Instruction;
 use crate::control::{ExceptionCode, REG_RA};
 use crate::memory::Memory;
-use crate::util::error::Result;
+use crate::util::error::{Result, RmipsError};
 use crate::Address;
 
 #[allow(unused_variables)]
@@ -71,8 +71,11 @@ impl Cpu {
     }
 
     /// Break
-    pub fn break_emulate(&mut self) {
-        self.exception(ExceptionCode::Break)
+    pub fn break_emulate(&mut self) -> Result<()> {
+        self.exception(ExceptionCode::Break);
+
+        // Temporary; should be triggered in exception handling
+        Err(RmipsError::Halt)
     }
 
     /// Move from HI register

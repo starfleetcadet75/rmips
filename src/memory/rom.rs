@@ -19,6 +19,13 @@ impl Rom {
         f.read_to_end(&mut data)
             .map_err(|_| RmipsError::RomLoading(rom_path.to_owned()))?;
 
+        // TODO: The current setup.s code tries to load one extra word at end of ROM
+        // which causes a memory error. Need to either fix setup.s or align here.
+        data.push(0);
+        data.push(0);
+        data.push(0);
+        data.push(0);
+
         Ok(Self { rom_path, data })
     }
 
