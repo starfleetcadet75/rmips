@@ -1,4 +1,5 @@
 use std::net::{TcpListener, TcpStream};
+use std::time::Instant;
 
 use gdbstub::GdbStub;
 use log::{error, info};
@@ -30,6 +31,7 @@ pub struct Emulator {
     pub(crate) breakpoints: Vec<Address>,
     pub(crate) watchpoints: Vec<Address>,
     instruction_count: usize,
+    start_time: Instant,
     opts: Opts,
 }
 
@@ -66,12 +68,16 @@ impl Emulator {
             breakpoints: Default::default(),
             watchpoints: Default::default(),
             instruction_count: 0,
+            start_time: Instant::now(),
             opts,
         })
     }
 
     pub fn run(&mut self) -> Result<()> {
         println!("\n*************[ RESET ]*************\n");
+
+        // Save the current start time
+        self.start_time = Instant::now();
 
         // Optionally start the GDB server before the program
         if self.opts.debug {
@@ -102,7 +108,13 @@ impl Emulator {
     fn run_until_halt(&mut self) -> Result<()> {
         loop {
             if self.step()? == EmulationEvent::Halted {
-                println!("Executed {} instructions", self.instruction_count);
+                let elapsed = self.start_time.elapsed().as_secs_f64();
+                let instr_per_second = self.instruction_count as f64 / elapsed;
+                println!(
+                    "Executed {} instructions in {:.5} seconds ({:.3} instructions per second)",
+                    self.instruction_count, elapsed, instr_per_second
+                );
+
                 println!("\n*************[ HALT ]*************\n");
                 break;
             }
