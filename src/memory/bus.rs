@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt;
 
 use crate::devices::Device;
 use crate::memory::range::Range;
@@ -96,6 +97,15 @@ impl Memory for Bus {
     fn store_byte(&mut self, address: Address, data: u8) -> Result<()> {
         let data = u8::to_le_bytes(data);
         self.write(address, &data)
+    }
+}
+
+impl fmt::Display for Bus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (range, device) in &self.devices {
+            writeln!(f, "  {}  {}", range, device.debug_label())?;
+        }
+        write!(f, "")
     }
 }
 

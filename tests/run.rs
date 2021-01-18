@@ -1,9 +1,11 @@
+use pretty_assertions::assert_eq;
+
 use rmips::emulator::Emulator;
-use rmips::util::error::RmipsError;
+use rmips::util::error::Result;
 use rmips::util::opts::Opts;
 
 #[test]
-fn run_emptymain_le_program() -> Result<(), RmipsError> {
+fn run_emptymain_le_program() -> Result<()> {
     let mut opts = Opts::default();
     opts.romfile = String::from("./tests/build/emptymain_le.rom");
     opts.instrdump = true;

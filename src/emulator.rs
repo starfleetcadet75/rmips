@@ -141,6 +141,11 @@ impl Emulator {
             Ok(EmulationEvent::Step)
         }
     }
+
+    /// Prints useful information about the state of the emulator when an error occurs.
+    pub fn crashdump(&self) -> String {
+        format!("{}\n\n{}", self.cpu, self.bus)
+    }
 }
 
 fn setup_rom(opts: &Opts, bus: &mut Bus) -> Result<()> {

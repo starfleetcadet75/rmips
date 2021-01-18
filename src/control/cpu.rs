@@ -1,3 +1,5 @@
+use std::fmt;
+
 use capstone::prelude::*;
 use log::{error, warn};
 
@@ -253,5 +255,61 @@ impl Cpu {
         }
 
         self.cpzero.exception(self.pc, exception_code);
+    }
+}
+
+#[rustfmt::skip]
+impl fmt::Display for Cpu {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use crate::control::cpzero;
+
+        let result = [
+            "           zero       at       v0       v1       a0       a1       a2       a3".to_string(),
+            format!(
+                "  R0   {}",
+                (0..=7)
+                    .map(|i| { format!("{:08x}", self.reg[i]) })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ),
+            "             t0       t1       t2       t3       t4       t5       t6       t7".to_string(),
+            format!(
+                "  R8   {}",
+                (8..=15)
+                    .map(|i| { format!("{:08x}", self.reg[i]) })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ),
+            "             s0       s1       s2       s3       s4       s5       s6       s7".to_string(),
+            format!(
+                "  R16  {}",
+                (16..=23)
+                    .map(|i| { format!("{:08x}", self.reg[i]) })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ),
+            "             t8       t9       k0       k1       gp       sp       s8       ra".to_string(),
+            format!(
+                "  R24  {}",
+                (24..=31)
+                    .map(|i| { format!("{:08x}", self.reg[i]) })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ),
+            "             sr       lo       hi      bad    cause       pc".to_string(),
+            format!("       {:08x} {:08x} {:08x} {:08x} {:08x} {:08x}",
+                self.cpzero.reg[cpzero::STATUS],
+                self.low,
+                self.high,
+                self.cpzero.reg[cpzero::BADVADDR],
+                self.cpzero.reg[cpzero::CAUSE],
+                self.pc
+            ),
+            // format!("            fsr      fir"),
+            // format!("       {:08x} {:08x}", self.cpone.reg[cpone::FSR], self.cpone.reg[cpone::FIR]),
+        ]
+        .join("\n");
+
+        write!(f, "{}", result)
     }
 }

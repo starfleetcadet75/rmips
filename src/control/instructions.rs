@@ -511,6 +511,7 @@ impl Cpu {
 mod tests {
     use super::*;
     use crate::control::REG_A0;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_sll_emulate() {

@@ -49,7 +49,7 @@ fn main() -> Result<()> {
 
     let mut emulator = Emulator::new(opts)?;
     if let Err(err) = emulator.run() {
-        eprintln!("Error: {:#}", err);
+        eprintln!("Error: {:#}\n\n{}", err, emulator.crashdump());
         std::process::exit(1);
     }
 

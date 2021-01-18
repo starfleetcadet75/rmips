@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt;
 
 use crate::Address;
 
@@ -56,6 +57,12 @@ impl Ord for Range {
 impl PartialOrd for Range {
     fn partial_cmp(&self, other: &Range) -> Option<Ordering> {
         self.base.partial_cmp(&other.base)
+    }
+}
+
+impl fmt::Display for Range {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:08x} {:08x}", self.base, self.size)
     }
 }
 

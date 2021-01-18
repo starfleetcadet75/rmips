@@ -13,9 +13,11 @@ pub struct Rom {
 
 impl Rom {
     pub fn new(rom_path: String) -> Result<Rom> {
-        let mut f = File::open(&rom_path)?;
+        let mut f =
+            File::open(&rom_path).map_err(|_| RmipsError::RomLoading(rom_path.to_owned()))?;
         let mut data = Vec::new();
-        f.read_to_end(&mut data)?;
+        f.read_to_end(&mut data)
+            .map_err(|_| RmipsError::RomLoading(rom_path.to_owned()))?;
 
         Ok(Self { rom_path, data })
     }
