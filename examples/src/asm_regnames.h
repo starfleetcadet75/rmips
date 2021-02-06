@@ -1,0 +1,129 @@
+#ifndef ASM_REGNAMES_H
+#define ASM_REGNAMES_H
+
+// General-purpose register names
+#define zero $0
+#define v0 $2
+#define v1 $3
+#define a0 $4
+#define a1 $5
+#define a2 $6
+#define a3 $7
+#define t0 $8
+#define t1 $9
+#define t2 $10
+#define t3 $11
+#define t4 $12
+#define t5 $13
+#define t6 $14
+#define t7 $15
+#define s0 $16
+#define s1 $17
+#define s2 $18
+#define s3 $19
+#define s4 $20
+#define s5 $21
+#define s6 $22
+#define s7 $23
+#define t8 $24
+#define t9 $25
+#define k0 $26
+#define kt0 $26
+#define k1 $27
+#define kt1 $27
+#define gp $28
+#define sp $29
+#define s8 $30
+#define ra $31
+
+// FPU register names
+#define f0 $f0
+#define f1 $f1
+#define f2 $f2
+#define f3 $f3
+#define f4 $f4
+#define f5 $f5
+#define f6 $f6
+#define f7 $f7
+#define f8 $f8
+#define f9 $f9
+#define f10 $f10
+#define f11 $f11
+#define f12 $f12
+#define f13 $f13
+#define f14 $f14
+#define f15 $f15
+#define f16 $f16
+#define f17 $f17
+#define f18 $f18
+#define f19 $f19
+#define f20 $f20
+#define f21 $f21
+#define f22 $f22
+#define f23 $f23
+#define f24 $f24
+#define f25 $f25
+#define f26 $f26
+#define f27 $f27
+#define f28 $f28
+#define f29 $f29
+#define f30 $f30
+#define f31 $f31
+
+// CP0 register names
+#define Index $0
+#define Random $1
+#define EntryLo $2
+#define EntryLo0 $2
+#define EntryLo1 $3
+#define Context $4
+#define PageMask $5
+#define Wired $6
+#define Error $7
+#define BadVAddr $8
+#define Count $9
+#define EntryHi $10
+#define ASID $10
+#define Compare $11
+#define Status $12
+#define Cause $13
+#define EPC $14
+#define PRId $15
+#define Config $16
+#define LLAdr $17
+#define LLAddr $17
+#define WatchLo $18
+#define WatchHi $19
+// 20-25 reserved
+#define ECC $26
+#define CacheErr $27
+#define TagLo $28
+#define TagHi $29
+#define ErrorEPC $30
+// 31 reserved
+
+// Exceptions
+#define Int 0
+#define Mod 1
+#define TLBL 2
+#define TLBS 3
+#define AdEL 4
+#define AdES 5
+#define IBE 6
+#define DBE 7
+#define Sys 8
+#define Bp 9
+#define RI 10
+#define CpU 11
+#define Ov 12
+#define Tr 13
+#define NCD 14
+#define VCEI 14
+#define MV 15
+#define FPE 15
+// 16-22 reserved
+#define WATCH 23
+// 24-30 reserved
+#define VCED 31
+
+#endif

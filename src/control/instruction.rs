@@ -11,18 +11,18 @@ impl Instruction {
     }
 
     /// Returns the numeric representation of the source register.
-    pub fn rs(&self) -> u32 {
-        (self.0 >> 21) & 0b0001_1111
+    pub fn rs(&self) -> usize {
+        ((self.0 >> 21) & 0b0001_1111) as usize
     }
 
     /// Returns the numeric representation of the target register.
-    pub fn rt(&self) -> u32 {
-        (self.0 >> 16) & 0b0001_1111
+    pub fn rt(&self) -> usize {
+        ((self.0 >> 16) & 0b0001_1111) as usize
     }
 
     /// Returns the numeric representation of the destination register.
-    pub fn rd(&self) -> u32 {
-        (self.0 >> 11) & 0b0001_1111
+    pub fn rd(&self) -> usize {
+        ((self.0 >> 11) & 0b0001_1111) as usize
     }
 
     /// Returns the shift amount used by shift and rotate instructions.

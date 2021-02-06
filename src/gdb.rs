@@ -11,11 +11,11 @@ use gdbstub::target::ext::breakpoints::{
 use gdbstub::target::{Target, TargetError, TargetResult};
 use log::error;
 
-use crate::control::cpzero;
-use crate::emulator::{EmulationEvent, Emulator};
+use crate::control::registers::Cp0Register;
+use crate::emulator::Emulator;
 use crate::memory::Memory;
 use crate::util::error::RmipsError;
-use crate::Address;
+use crate::{Address, EmulationEvent};
 
 impl Target for Emulator {
     type Arch = arch::mips::MipsWithDsp;
@@ -85,9 +85,9 @@ impl SingleThreadOps for Emulator {
         regs.core.lo = self.cpu.low;
         regs.core.hi = self.cpu.high;
         regs.core.pc = self.cpu.pc;
-        regs.core.cp0.status = self.cpu.cpzero.reg[cpzero::STATUS];
-        regs.core.cp0.badvaddr = self.cpu.cpzero.reg[cpzero::BADVADDR];
-        regs.core.cp0.cause = self.cpu.cpzero.reg[cpzero::CAUSE];
+        regs.core.cp0.status = self.cpu.cpzero.reg[Cp0Register::Status];
+        regs.core.cp0.badvaddr = self.cpu.cpzero.reg[Cp0Register::BadVaddr];
+        regs.core.cp0.cause = self.cpu.cpzero.reg[Cp0Register::Cause];
         Ok(())
     }
 
@@ -99,20 +99,20 @@ impl SingleThreadOps for Emulator {
         self.cpu.low = regs.core.lo;
         self.cpu.high = regs.core.hi;
         self.cpu.pc = regs.core.pc;
-        self.cpu.cpzero.reg[cpzero::STATUS] = regs.core.cp0.status;
-        self.cpu.cpzero.reg[cpzero::BADVADDR] = regs.core.cp0.badvaddr;
-        self.cpu.cpzero.reg[cpzero::CAUSE] = regs.core.cp0.cause;
+        self.cpu.cpzero.reg[Cp0Register::Status] = regs.core.cp0.status;
+        self.cpu.cpzero.reg[Cp0Register::BadVaddr] = regs.core.cp0.badvaddr;
+        self.cpu.cpzero.reg[Cp0Register::Cause] = regs.core.cp0.cause;
         Ok(())
     }
 
     fn read_register(&mut self, reg_id: MipsRegId<u32>, dst: &mut [u8]) -> TargetResult<(), Self> {
         let w = match reg_id {
             MipsRegId::Gpr(i) => self.cpu.reg[i as usize],
-            MipsRegId::Status => self.cpu.cpzero.reg[cpzero::STATUS],
+            MipsRegId::Status => self.cpu.cpzero.reg[Cp0Register::Status],
             MipsRegId::Lo => self.cpu.low,
             MipsRegId::Hi => self.cpu.high,
-            MipsRegId::Badvaddr => self.cpu.cpzero.reg[cpzero::BADVADDR],
-            MipsRegId::Cause => self.cpu.cpzero.reg[cpzero::CAUSE],
+            MipsRegId::Badvaddr => self.cpu.cpzero.reg[Cp0Register::BadVaddr],
+            MipsRegId::Cause => self.cpu.cpzero.reg[Cp0Register::Cause],
             MipsRegId::Pc => self.cpu.pc,
             // MipsRegId::Fpr(i) => todo!(),
             // MipsRegId::Fcsr => todo!(),
@@ -129,11 +129,11 @@ impl SingleThreadOps for Emulator {
 
         match reg_id {
             MipsRegId::Gpr(i) => self.cpu.reg[i as usize] = w,
-            MipsRegId::Status => self.cpu.cpzero.reg[cpzero::STATUS] = w,
+            MipsRegId::Status => self.cpu.cpzero.reg[Cp0Register::Status] = w,
             MipsRegId::Lo => self.cpu.low = w,
             MipsRegId::Hi => self.cpu.high = w,
-            MipsRegId::Badvaddr => self.cpu.cpzero.reg[cpzero::BADVADDR] = w,
-            MipsRegId::Cause => self.cpu.cpzero.reg[cpzero::CAUSE] = w,
+            MipsRegId::Badvaddr => self.cpu.cpzero.reg[Cp0Register::BadVaddr] = w,
+            MipsRegId::Cause => self.cpu.cpzero.reg[Cp0Register::Cause] = w,
             MipsRegId::Pc => self.cpu.pc = w,
             // MipsRegId::Fpr(i) => todo!() = w,
             // MipsRegId::Fcsr => todo!() = w,

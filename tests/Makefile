@@ -8,31 +8,52 @@ BUILD_DIR = build
 
 .PHONY: all clean
 
-all: emptymain_le.rom emptymain_be.rom
+all: arithmetic.rom bitwise.rom branch.rom logic.rom memory.rom
 
-emptymain_le.rom: emptymain_le.elf
-	$(OBJCOPY) -O binary $(BUILD_DIR)/emptymain_le.elf $(BUILD_DIR)/emptymain_le.rom
+arithmetic.rom: arithmetic.elf
+	$(OBJCOPY) -O binary $(BUILD_DIR)/arithmetic.elf $(BUILD_DIR)/arithmetic.rom
 
-emptymain_be.rom: emptymain_be.elf
-	$(OBJCOPY) -O binary $(BUILD_DIR)/emptymain_be.elf $(BUILD_DIR)/emptymain_be.rom
+bitwise.rom: bitwise.elf
+	$(OBJCOPY) -O binary $(BUILD_DIR)/bitwise.elf $(BUILD_DIR)/bitwise.rom
 
-emptymain_le.elf: emptymain_le.o setup_le.o
-	$(LD) -EL -T ld.script -o $(BUILD_DIR)/emptymain_le.elf $(BUILD_DIR)/setup_le.o $(BUILD_DIR)/emptymain_le.o
+branch.rom: branch.elf
+	$(OBJCOPY) -O binary $(BUILD_DIR)/branch.elf $(BUILD_DIR)/branch.rom
 
-emptymain_be.elf: emptymain_be.o setup_be.o
-	$(LD) -EB -T ld.script -o $(BUILD_DIR)/emptymain_be.elf $(BUILD_DIR)/setup_be.o $(BUILD_DIR)/emptymain_be.o
+logic.rom: logic.elf
+	$(OBJCOPY) -O binary $(BUILD_DIR)/logic.elf $(BUILD_DIR)/logic.rom
 
-emptymain_le.o: $(SRC_DIR)/emptymain.c
-	$(CC) $(CFLAGS) -EL -o $(BUILD_DIR)/emptymain_le.o -c $(SRC_DIR)/emptymain.c
+memory.rom: memory.elf
+	$(OBJCOPY) -O binary $(BUILD_DIR)/memory.elf $(BUILD_DIR)/memory.rom
 
-emptymain_be.o: $(SRC_DIR)/emptymain.c
-	$(CC) $(CFLAGS) -EB -o $(BUILD_DIR)/emptymain_be.o -c $(SRC_DIR)/emptymain.c
+arithmetic.elf: arithmetic.o
+	$(LD) -EL -T ld.script -o $(BUILD_DIR)/arithmetic.elf $(BUILD_DIR)/arithmetic.o
 
-setup_le.o: $(SRC_DIR)/setup.s
-	$(CC) $(CFLAGS) -EL -c -x assembler-with-cpp -o $(BUILD_DIR)/setup_le.o $(SRC_DIR)/setup.s
+bitwise.elf: bitwise.o
+	$(LD) -EL -T ld.script -o $(BUILD_DIR)/bitwise.elf $(BUILD_DIR)/bitwise.o
 
-setup_be.o: $(SRC_DIR)/setup.s
-	$(CC) $(CFLAGS) -EB -c -x assembler-with-cpp -o $(BUILD_DIR)/setup_be.o $(SRC_DIR)/setup.s
+branch.elf: branch.o
+	$(LD) -EL -T ld.script -o $(BUILD_DIR)/branch.elf $(BUILD_DIR)/branch.o
+
+logic.elf: logic.o
+	$(LD) -EL -T ld.script -o $(BUILD_DIR)/logic.elf $(BUILD_DIR)/logic.o
+
+memory.elf: memory.o
+	$(LD) -EL -T ld.script -o $(BUILD_DIR)/memory.elf $(BUILD_DIR)/memory.o
+
+arithmetic.o: $(SRC_DIR)/arithmetic.s
+	$(CC) $(CFLAGS) -EL -c -x assembler-with-cpp -o $(BUILD_DIR)/arithmetic.o $(SRC_DIR)/arithmetic.s
+
+bitwise.o: $(SRC_DIR)/bitwise.s
+	$(CC) $(CFLAGS) -EL -c -x assembler-with-cpp -o $(BUILD_DIR)/bitwise.o $(SRC_DIR)/bitwise.s
+
+branch.o: $(SRC_DIR)/branch.s
+	$(CC) $(CFLAGS) -EL -c -x assembler-with-cpp -o $(BUILD_DIR)/branch.o $(SRC_DIR)/branch.s
+
+logic.o: $(SRC_DIR)/logic.s
+	$(CC) $(CFLAGS) -EL -c -x assembler-with-cpp -o $(BUILD_DIR)/logic.o $(SRC_DIR)/logic.s
+
+memory.o: $(SRC_DIR)/memory.s
+	$(CC) $(CFLAGS) -EL -c -x assembler-with-cpp -o $(BUILD_DIR)/memory.o $(SRC_DIR)/memory.s
 
 clean:
 	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.elf $(BUILD_DIR)/*.rom

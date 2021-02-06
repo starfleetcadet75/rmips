@@ -14,19 +14,10 @@ use crate::memory::ram::Ram;
 use crate::memory::rom::Rom;
 use crate::util::error::{Result, RmipsError};
 use crate::util::opts::Opts;
-use crate::{Address, Endian};
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum EmulationEvent {
-    Step,
-    Halted,
-    Breakpoint,
-    WatchWrite(Address),
-    WatchRead(Address),
-}
+use crate::{Address, EmulationEvent, Endian};
 
 pub struct Emulator {
-    pub(crate) cpu: Cpu,
+    pub cpu: Cpu,
     pub(crate) bus: Bus,
     pub(crate) breakpoints: Vec<Address>,
     pub(crate) watchpoints: Vec<Address>,
@@ -131,10 +122,11 @@ impl Emulator {
         });
 
         // Step the `Cpu` until a halt is triggered
-        match self.cpu.step(&mut monitor) {
-            Err(RmipsError::Halt) => return Ok(EmulationEvent::Halted),
-            Err(err) => return Err(err),
-            _ => {}
+        if let Err(err) = self.cpu.step(&mut monitor) {
+            match err {
+                RmipsError::Halt => return Ok(EmulationEvent::Halted),
+                _ => return Err(err),
+            }
         }
 
         self.instruction_count += 1;

@@ -5,7 +5,8 @@ use log::{error, warn};
 
 use crate::control::cpzero::CPZero;
 use crate::control::instruction::Instruction;
-use crate::control::{ExceptionCode, REG_ZERO};
+use crate::control::registers::{Cp0Register, Register};
+use crate::control::ExceptionCode;
 use crate::memory::Memory;
 use crate::util::error::{Result, RmipsError};
 use crate::Address;
@@ -69,7 +70,7 @@ impl Cpu {
 
     /// Resets the `Cpu` state to initial startup values
     pub fn reset(&mut self) {
-        self.reg[REG_ZERO] = 0;
+        self.reg[Register::Zero] = 0;
         self.pc = 0xbfc00000;
         self.cpzero.reset();
     }
@@ -210,7 +211,7 @@ impl Cpu {
 
         // Register $r0 is hardwired to a value of zero
         // It can be written to by instructions however the result is always discarded
-        self.reg[REG_ZERO] = 0;
+        self.reg[Register::Zero] = 0;
 
         // Update the program counter
         // `DelayState` tracks whether the current instruction should be executed from the delay slot
@@ -261,8 +262,6 @@ impl Cpu {
 #[rustfmt::skip]
 impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use crate::control::cpzero;
-
         let result = [
             "           zero       at       v0       v1       a0       a1       a2       a3".to_string(),
             format!(
@@ -298,11 +297,11 @@ impl fmt::Display for Cpu {
             ),
             "             sr       lo       hi      bad    cause       pc".to_string(),
             format!("       {:08x} {:08x} {:08x} {:08x} {:08x} {:08x}",
-                self.cpzero.reg[cpzero::STATUS],
+                self.cpzero.reg[Cp0Register::Status],
                 self.low,
                 self.high,
-                self.cpzero.reg[cpzero::BADVADDR],
-                self.cpzero.reg[cpzero::CAUSE],
+                self.cpzero.reg[Cp0Register::BadVaddr],
+                self.cpzero.reg[Cp0Register::Cause],
                 self.pc
             ),
             // format!("            fsr      fir"),

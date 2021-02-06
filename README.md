@@ -19,7 +19,7 @@ cargo build --release
 ## Development
 
 Install the `gcc-mips-linux-gnu` package in order to cross-compile for MIPS targets.
-The `tests` directory should be used as a starting point for new programs.
+Use the [examples](./examples) directory as a starting point for creating ROMs.
 
 ## GDB Support
 
@@ -55,8 +55,10 @@ Use the ELF program with GDB so that it can show source information.
 
 * [VMIPS](http://www.dgate.org/vmips)
 * [MIPS R3000 Manual](https://cgi.cse.unsw.edu.au/~cs3231/doc/R3000.pdf)
+* [MIPS32 Architecture For Programmers Volume II: The MIPS32 Instruction Set](http://www.cs.cornell.edu/courses/cs3410/2008fa/MIPS_Vol2.pdf)
 * [Software Solutions for Single Instruction Issue, in Order Processors](https://web.ics.purdue.edu/~vaneet/Aggarwal2004_1425.pdf)
 * [GNU AS MIPS Dependent Features](https://sourceware.org/binutils/docs-2.26/as/MIPS_002dDependent.html#MIPS_002dDependent)
+* [Detecting MIPS Emulation](https://www.alchemistowl.org/pocorgtfo/pocorgtfo06.pdf)
 
 ## License
 

@@ -1,5 +1,7 @@
 //! See Chapter 6 Memory Management and the TLB in the IDT R30xx Manual.
 
+#![allow(dead_code)]
+
 bitflags! {
     struct EntryHiMask: u32 {
         /// Virtual page number

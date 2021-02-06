@@ -1,59 +1,16 @@
-#![allow(dead_code)]
-
 use crate::Address;
 
-#[macro_use]
 pub(crate) mod cpu;
 pub(crate) mod cpzero;
 mod instruction;
 mod instructions;
+pub mod registers;
 mod tlbentry;
-
-type Register = usize;
-
-/// Zero register
-const REG_ZERO: Register = 0;
-const REG_AT: Register = 1;
-const REG_V0: Register = 2;
-const REG_V1: Register = 3;
-const REG_A0: Register = 4;
-const REG_A1: Register = 5;
-const REG_A2: Register = 6;
-const REG_A3: Register = 7;
-const REG_T0: Register = 8;
-const REG_T1: Register = 9;
-const REG_T2: Register = 10;
-const REG_T3: Register = 11;
-const REG_T4: Register = 12;
-const REG_T5: Register = 13;
-const REG_T6: Register = 14;
-const REG_T7: Register = 15;
-const REG_S0: Register = 16;
-const REG_S1: Register = 17;
-const REG_S2: Register = 18;
-const REG_S3: Register = 19;
-const REG_S4: Register = 20;
-const REG_S5: Register = 21;
-const REG_S6: Register = 22;
-const REG_S7: Register = 23;
-const REG_T8: Register = 24;
-const REG_T9: Register = 25;
-const REG_K0: Register = 26;
-const REG_K1: Register = 27;
-/// Global pointer
-const REG_GP: Register = 28;
-/// Stack pointer
-const REG_SP: Register = 29;
-/// Frame pointer
-const REG_FP: Register = 30;
-/// Return address register
-const REG_RA: Register = 31;
 
 /// Address mask for determining which segment the address belongs to
 pub const KSEG_SELECT_MASK: Address = 0xe0000000;
 /// Start address of kernel-space
 pub const KERNEL_SPACE_MASK: Address = KSEG0;
-
 /// Start address of TLB-mapped cacheable user or kernel space
 pub const KUSEG: Address = 0;
 /// Start of direct-mapped cacheable kernel space
