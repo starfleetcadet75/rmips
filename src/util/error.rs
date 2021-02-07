@@ -9,7 +9,7 @@ pub type Result<T> = std::result::Result<T, RmipsError>;
 #[derive(Debug)]
 pub enum RmipsError {
     Halt,
-    InvalidInstruction(u32),
+    // InvalidInstruction(u32),
     Io(io::Error),
     MemoryRangeOverlap,
     MemoryRead(Address),
@@ -26,11 +26,11 @@ impl fmt::Display for RmipsError {
 
         match self {
             Halt => write!(f, "System halt triggered"),
-            InvalidInstruction(instr) => write!(
-                f,
-                "Attempted to execute an invalid instruction: 0x{:08x}",
-                instr
-            ),
+            // InvalidInstruction(instr) => write!(
+            //     f,
+            //     "Attempted to execute an invalid instruction: 0x{:08x}",
+            //     instr
+            // ),
             Io(err) => err.fmt(f),
             MemoryRangeOverlap => write!(f, "New memory range overlaps an existing one"),
             MemoryRead(address) => write!(f, "Failed to read memory from 0x{:08x}", address),

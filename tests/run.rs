@@ -5,6 +5,7 @@ use rmips::registers::Register;
 use rmips::util::error::Result;
 use rmips::util::opts::Opts;
 
+#[ignore]
 #[test]
 fn arithmetic_program() -> Result<()> {
     let mut opts = Opts::default();
@@ -84,6 +85,7 @@ fn logic_program() -> Result<()> {
     assert_eq!(emulator.cpu.reg[Register::A1], 0xffbf);
     assert_eq!(emulator.cpu.reg[Register::A2], 0xffff0040);
     assert_eq!(emulator.cpu.reg[Register::T3], 1);
+
     Ok(())
 }
 
@@ -97,6 +99,22 @@ fn memory_program() -> Result<()> {
     let result = emulator.run();
     assert!(result.is_ok(), true);
 
-    // assert_eq!(emulator.cpu.reg[Register::T1], 42);
+    assert_eq!(emulator.cpu.reg[Register::A0], 0xf);
+    assert_eq!(emulator.cpu.reg[Register::A1], 0x0f0f);
+    assert_eq!(emulator.cpu.reg[Register::A2], 0x0f0f);
+    assert_eq!(emulator.cpu.reg[Register::A3], 0x0f0f);
+
+    assert_eq!(emulator.cpu.reg[Register::T0], 0xf);
+    assert_eq!(emulator.cpu.reg[Register::T1], 0xf);
+    assert_eq!(emulator.cpu.reg[Register::T2], 0xfffff0f0);
+    assert_eq!(emulator.cpu.reg[Register::T3], 0xf0f0);
+    assert_eq!(emulator.cpu.reg[Register::T4], 0xf);
+    assert_eq!(emulator.cpu.reg[Register::T5], 0xf);
+    assert_eq!(emulator.cpu.reg[Register::T6], 0xfffffff0);
+    assert_eq!(emulator.cpu.reg[Register::T7], 0xf0);
+
+    assert_eq!(emulator.cpu.reg[Register::S0], 0xfffffff0);
+    assert_eq!(emulator.cpu.reg[Register::S1], 0xf0);
+
     Ok(())
 }

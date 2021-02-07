@@ -1,16 +1,13 @@
 //! This module contains the helper functions that are used by the `Cpu` for executing instructions.
 
-use log::warn;
-
 use crate::control::cpu::{Cpu, DelayState};
 use crate::control::instruction::Instruction;
 use crate::control::registers::Register;
 use crate::control::ExceptionCode;
 use crate::memory::Memory;
-use crate::util::error::{Result, RmipsError};
+use crate::util::error::Result;
 use crate::Address;
 
-#[allow(unused_variables)]
 impl Cpu {
     /// Shift left logical
     pub fn sll_emulate(&mut self, instr: Instruction) {
@@ -44,11 +41,7 @@ impl Cpu {
 
     /// Jump register
     pub fn jr_emulate(&mut self, instr: Instruction) {
-        if self.reg[instr.rd()] != 0 {
-            self.exception(ExceptionCode::ReservedInstruction);
-        } else {
-            self.control_transfer(self.reg[instr.rs()]);
-        }
+        self.control_transfer(self.reg[instr.rs()]);
     }
 
     /// Jump and link register
@@ -60,16 +53,13 @@ impl Cpu {
     }
 
     /// System call
-    pub fn syscall_emulate(&mut self) {
+    pub fn syscall_emulate(&mut self) -> Result<()> {
         self.exception(ExceptionCode::Syscall)
     }
 
     /// Break
     pub fn break_emulate(&mut self) -> Result<()> {
-        self.exception(ExceptionCode::Break);
-
-        // Temporary; should be triggered in exception handling
-        Err(RmipsError::Halt)
+        self.exception(ExceptionCode::Break)
     }
 
     /// Move from HI register
@@ -79,11 +69,7 @@ impl Cpu {
 
     /// Move to HI register
     pub fn mthi_emulate(&mut self, instr: Instruction) {
-        if instr.rd() != 0 {
-            self.exception(ExceptionCode::ReservedInstruction);
-        } else {
-            self.high = self.reg[instr.rs()];
-        }
+        self.high = self.reg[instr.rs()];
     }
 
     /// Move from LO register
@@ -93,11 +79,7 @@ impl Cpu {
 
     /// Move to LO register
     pub fn mtlo_emulate(&mut self, instr: Instruction) {
-        if instr.rd() != 0 {
-            self.exception(ExceptionCode::ReservedInstruction);
-        } else {
-            self.low = self.reg[instr.rs()];
-        }
+        self.low = self.reg[instr.rs()];
     }
 
     /// Multiply word
@@ -114,26 +96,37 @@ impl Cpu {
         self.high = (t >> 32) as u32;
     }
 
-    /// Divide
+    /// Divide word
     pub fn div_emulate(&mut self, instr: Instruction) {
-        todo!()
+        let rs = self.reg[instr.rs()] as i32;
+        let rt = self.reg[instr.rt()] as i32;
+
+        // According to the documentation the arithmetic result value is
+        // unpredictable if the divisor in register rt is zero. For now
+        // we follow MARS behavior and explicitly set rt/rs to zero.
+        self.low = rs.checked_div(rt).unwrap_or(0) as u32;
+        self.high = rs.checked_rem(rt).unwrap_or(0) as u32;
     }
 
-    /// Divide unsigned
+    /// Divide unsigned word
     pub fn divu_emulate(&mut self, instr: Instruction) {
-        todo!()
+        let rs = self.reg[instr.rs()];
+        let rt = self.reg[instr.rt()];
+        self.low = rs.checked_div(rt).unwrap_or(0);
+        self.high = rs.checked_rem(rt).unwrap_or(0);
     }
 
     /// Addition with overflow
-    pub fn add_emulate(&mut self, instr: Instruction) {
+    pub fn add_emulate(&mut self, instr: Instruction) -> Result<()> {
         let rs = self.reg[instr.rs()];
         let rt = self.reg[instr.rt()];
         let (result, carry) = rs.overflowing_add(rt);
 
         if carry {
-            self.exception(ExceptionCode::Overflow);
+            self.exception(ExceptionCode::Overflow)
         } else {
             self.reg[instr.rd()] = result;
+            Ok(())
         }
     }
 
@@ -145,15 +138,16 @@ impl Cpu {
     }
 
     /// Subtract with overflow
-    pub fn sub_emulate(&mut self, instr: Instruction) {
+    pub fn sub_emulate(&mut self, instr: Instruction) -> Result<()> {
         let rs = self.reg[instr.rs()];
         let rt = self.reg[instr.rt()];
         let (result, carry) = rs.overflowing_sub(rt);
 
         if carry {
-            self.exception(ExceptionCode::Overflow);
+            self.exception(ExceptionCode::Overflow)
         } else {
             self.reg[instr.rd()] = result;
+            Ok(())
         }
     }
 
@@ -222,22 +216,34 @@ impl Cpu {
 
     /// Branch on less than zero
     pub fn bltz_emulate(&mut self, instr: Instruction) {
-        todo!()
+        if (self.reg[instr.rs()] as i32) < 0 {
+            self.branch(instr);
+        }
     }
 
     /// Branch on greater than or equal to zero
     pub fn bgez_emulate(&mut self, instr: Instruction) {
-        todo!()
+        if 0 <= (self.reg[instr.rs()] as i32) {
+            self.branch(instr);
+        }
     }
 
     /// Branch on less than zero and link
     pub fn bltzal_emulate(&mut self, instr: Instruction) {
-        todo!()
+        self.reg[Register::Ra] = self.pc + 8;
+
+        if (self.reg[instr.rs()] as i32) < 0 {
+            self.branch(instr);
+        }
     }
 
     /// Branch on greater than or equal to zero and link
     pub fn bgezal_emulate(&mut self, instr: Instruction) {
-        todo!()
+        self.reg[Register::Ra] = self.pc + 8;
+
+        if 0 <= (self.reg[instr.rs()] as i32) {
+            self.branch(instr);
+        }
     }
 
     /// Branch on equal
@@ -256,24 +262,31 @@ impl Cpu {
 
     /// Branch on less than or equal to zero
     pub fn blez_emulate(&mut self, instr: Instruction) {
-        todo!()
+        // Sign bit is 1 or value is zero
+        if self.reg[instr.rs()] == 0 || (self.reg[instr.rs()] & 0x80000000) != 0 {
+            self.branch(instr);
+        }
     }
 
     /// Branch on greater than zero
     pub fn bgtz_emulate(&mut self, instr: Instruction) {
-        todo!()
+        // Sign bit is 0 but value not zero
+        if self.reg[instr.rs()] != 0 && (self.reg[instr.rs()] & 0x80000000) == 0 {
+            self.branch(instr);
+        }
     }
 
     /// Add immediate (with overflow)
-    pub fn addi_emulate(&mut self, instr: Instruction) {
+    pub fn addi_emulate(&mut self, instr: Instruction) -> Result<()> {
         let rs = self.reg[instr.rs()];
         let imm = instr.simmed();
         let (result, carry) = rs.overflowing_add(imm);
 
         if carry {
-            self.exception(ExceptionCode::Overflow);
+            self.exception(ExceptionCode::Overflow)
         } else {
             self.reg[instr.rt()] = result;
+            Ok(())
         }
     }
 
@@ -311,19 +324,31 @@ impl Cpu {
         let vaddress = base + offset;
 
         let paddress = self.cpzero.translate(vaddress);
-        let data = memory.fetch_byte(paddress)?;
-        self.reg[instr.rt()] = data as i32 as u32; // Sign-extend the byte first
-
+        let data = memory.fetch_byte(paddress)? as i8; // Sign-extend the byte first
+        self.reg[instr.rt()] = data as u32;
         Ok(())
     }
 
     /// Load halfword
-    pub fn lh_emulate(&mut self, instr: Instruction) {
-        todo!()
+    pub fn lh_emulate(&mut self, memory: &mut impl Memory, instr: Instruction) -> Result<()> {
+        // Calculate the virtual address
+        let base = self.reg[instr.rs()];
+        let offset = instr.simmed();
+        let vaddress = base + offset;
+
+        // Check for a halfword-aligned address
+        if vaddress % 2 != 0 {
+            self.exception(ExceptionCode::LoadAddressError)
+        } else {
+            let paddress = self.cpzero.translate(vaddress);
+            let data = memory.fetch_halfword(paddress)? as i16; // Sign-extend the word first
+            self.reg[instr.rt()] = data as u32;
+            Ok(())
+        }
     }
 
     /// Load word left
-    pub fn lwl_emulate(&mut self, instr: Instruction) {
+    pub fn lwl_emulate(&mut self, _instr: Instruction) {
         todo!()
     }
 
@@ -337,14 +362,13 @@ impl Cpu {
         // If either of the two least-significant bits of the virtual address
         // are non-zero a load address exception occurs
         if vaddress % 4 != 0 {
-            self.exception(ExceptionCode::LoadAddressError);
+            self.exception(ExceptionCode::LoadAddressError)
         } else {
             let paddress = self.cpzero.translate(vaddress);
             let data = memory.fetch_word(paddress)?;
             self.reg[instr.rt()] = data;
+            Ok(())
         }
-
-        Ok(())
     }
 
     /// Load byte unsigned
@@ -356,17 +380,28 @@ impl Cpu {
         let paddress = self.cpzero.translate(vaddress);
         let data = memory.fetch_byte(paddress)?;
         self.reg[instr.rt()] = data.into(); // Zero-extend the byte
-
         Ok(())
     }
 
     /// Load halfword unsigned
-    pub fn lhu_emulate(&mut self, instr: Instruction) {
-        todo!()
+    pub fn lhu_emulate(&mut self, memory: &mut impl Memory, instr: Instruction) -> Result<()> {
+        let base = self.reg[instr.rs()];
+        let offset = instr.simmed();
+        let vaddress = base + offset;
+
+        // Check for a halfword-aligned address
+        if vaddress % 2 != 0 {
+            self.exception(ExceptionCode::LoadAddressError)
+        } else {
+            let paddress = self.cpzero.translate(vaddress);
+            let data = memory.fetch_halfword(paddress)?;
+            self.reg[instr.rt()] = data.into();
+            Ok(())
+        }
     }
 
     /// Load word right
-    pub fn lwr_emulate(&mut self, instr: Instruction) {
+    pub fn lwr_emulate(&mut self, _instr: Instruction) {
         todo!()
     }
 
@@ -390,7 +425,7 @@ impl Cpu {
         // If the least-significant bit of the virtual address
         // is non-zero, a store address exception occurs
         if vaddress % 2 != 0 {
-            self.exception(ExceptionCode::StoreAddressError);
+            self.exception(ExceptionCode::StoreAddressError)?;
         } else {
             let paddress = self.cpzero.translate(vaddress);
             memory.store_halfword(paddress, data)?;
@@ -399,7 +434,7 @@ impl Cpu {
     }
 
     /// Store word left
-    pub fn swl_emulate(&mut self, instr: Instruction) {
+    pub fn swl_emulate(&mut self, _instr: Instruction) {
         todo!()
     }
 
@@ -413,7 +448,7 @@ impl Cpu {
         // If either of the two least-significant bits of the virtual address
         // are non-zero, a store address exception occurs
         if vaddress % 4 != 0 {
-            self.exception(ExceptionCode::StoreAddressError);
+            self.exception(ExceptionCode::StoreAddressError)?;
         } else {
             let paddress = self.cpzero.translate(vaddress);
             memory.store_word(paddress, data)?;
@@ -422,7 +457,7 @@ impl Cpu {
     }
 
     /// Store word right
-    pub fn swr_emulate(&mut self, instr: Instruction) {
+    pub fn swr_emulate(&mut self, _instr: Instruction) {
         todo!()
     }
 
@@ -480,9 +515,8 @@ impl Cpu {
     }
 
     /// Reserved instruction
-    pub fn ri_emulate(&mut self, instr: Instruction) {
-        warn!("Encountered a reserved instruction:\n{:?}", instr);
-        self.exception(ExceptionCode::ReservedInstruction);
+    pub fn ri_emulate(&mut self) -> Result<()> {
+        self.exception(ExceptionCode::ReservedInstruction)
     }
 
     fn srl(&self, a: u32, b: u32) -> u32 {
@@ -596,7 +630,13 @@ mod tests {
     }
 
     #[test]
-    fn mthi_emulate() {}
+    fn mthi_emulate() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x01000011);
+        cpu.reg[instr.rs()] = 0x4200ff00;
+        cpu.mthi_emulate(instr);
+        assert_eq!(cpu.reg[instr.rs()], cpu.high);
+    }
 
     #[test]
     fn mflo_emulate() {
@@ -608,7 +648,13 @@ mod tests {
     }
 
     #[test]
-    fn mtlo_emulate() {}
+    fn mtlo_emulate() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x01000013);
+        cpu.reg[instr.rs()] = 0x4200ff00;
+        cpu.mtlo_emulate(instr);
+        assert_eq!(cpu.reg[instr.rs()], cpu.low);
+    }
 
     #[test]
     fn mult_emulate() {
@@ -634,10 +680,108 @@ mod tests {
     }
 
     #[test]
-    fn div_emulate() {}
+    fn div_emulate_mod() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0109001a);
+
+        cpu.reg[instr.rs()] = 2;
+        cpu.reg[instr.rt()] = 5;
+        cpu.div_emulate(instr);
+
+        assert_eq!(cpu.low, 0);
+        assert_eq!(cpu.high, 2);
+    }
 
     #[test]
-    fn divu_emulate() {}
+    fn div_emulate_divide() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0109001a);
+
+        cpu.reg[instr.rs()] = 5;
+        cpu.reg[instr.rt()] = 2;
+        cpu.div_emulate(instr);
+
+        assert_eq!(cpu.low, 2);
+        assert_eq!(cpu.high, 1);
+    }
+
+    #[test]
+    fn div_emulate_divide_negative() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0109001a);
+
+        cpu.reg[instr.rs()] = -16 as i32 as u32;
+        cpu.reg[instr.rt()] = 4;
+        cpu.div_emulate(instr);
+
+        assert_eq!(cpu.low, 0xfffffffc);
+        assert_eq!(cpu.high, 0);
+    }
+
+    #[test]
+    fn div_emulate_divide_by_zero() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0109001a);
+
+        cpu.reg[instr.rs()] = 5;
+        cpu.reg[instr.rt()] = 0;
+        cpu.div_emulate(instr);
+
+        assert_eq!(cpu.low, 0);
+        assert_eq!(cpu.high, 0);
+    }
+
+    #[test]
+    fn divu_emulate_mod() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0109001b);
+
+        cpu.reg[instr.rs()] = 2;
+        cpu.reg[instr.rt()] = 5;
+        cpu.divu_emulate(instr);
+
+        assert_eq!(cpu.low, 0);
+        assert_eq!(cpu.high, 2);
+    }
+
+    #[test]
+    fn divu_emulate_divide() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0109001b);
+
+        cpu.reg[instr.rs()] = 5;
+        cpu.reg[instr.rt()] = 2;
+        cpu.divu_emulate(instr);
+
+        assert_eq!(cpu.low, 2);
+        assert_eq!(cpu.high, 1);
+    }
+
+    #[test]
+    fn divu_emulate_divide_negative() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0109001b);
+
+        cpu.reg[instr.rs()] = -16 as i32 as u32;
+        cpu.reg[instr.rt()] = 4;
+        cpu.divu_emulate(instr);
+
+        assert_eq!(cpu.low, 0x3ffffffc);
+        assert_eq!(cpu.high, 0);
+    }
+
+    #[test]
+    fn divu_emulate_divide_by_zero() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0109001b);
+
+        cpu.reg[instr.rs()] = 5;
+        cpu.reg[instr.rt()] = 0;
+        cpu.divu_emulate(instr);
+
+        assert_eq!(cpu.low, 0);
+        assert_eq!(cpu.high, 0);
+    }
 
     #[test]
     fn add_emulate() {}
@@ -664,13 +808,14 @@ mod tests {
     }
 
     #[test]
-    fn sub_emulate() {
+    fn sub_emulate() -> Result<()> {
         let mut cpu = Cpu::new(false);
         let instr = Instruction(0x00a62022);
         cpu.reg[instr.rt()] = 40;
         cpu.reg[instr.rs()] = 42;
-        cpu.sub_emulate(instr);
+        cpu.sub_emulate(instr)?;
         assert_eq!(cpu.reg[instr.rd()], 2);
+        Ok(())
     }
 
     #[test]
@@ -805,19 +950,145 @@ mod tests {
     }
 
     #[test]
-    fn bltz_emulate() {}
+    fn bltz_emulate_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05200004);
+        cpu.reg[instr.rs()] = -101 as i32 as u32;
+        cpu.bltz_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
 
     #[test]
-    fn bgez_emulate() {}
+    fn bltz_emulate_not_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05200004);
+        cpu.reg[instr.rs()] = 101;
+        cpu.bltz_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0);
+        assert_eq!(cpu.delay_state, DelayState::Normal)
+    }
 
     #[test]
-    fn bltzal_emulate() {}
+    fn bgez_emulate_taken_zero() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05210004);
+        cpu.reg[instr.rs()] = 0;
+        cpu.bgez_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
 
     #[test]
-    fn bgezal_emulate() {}
+
+    fn bgez_emulate_taken_greater_than_zero() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05210004);
+        cpu.reg[instr.rs()] = 100;
+        cpu.bgez_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
 
     #[test]
-    fn beq_emulate_branches() {
+
+    fn bgez_emulate_not_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05210004);
+        cpu.reg[instr.rs()] = -101 as i32 as u32;
+        cpu.bgez_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0);
+        assert_eq!(cpu.delay_state, DelayState::Normal)
+    }
+
+    #[test]
+    fn bltzal_emulate_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05300004);
+        cpu.reg[instr.rs()] = -101 as i32 as u32;
+        cpu.bltzal_emulate(instr);
+
+        assert_eq!(cpu.reg[Register::Ra], 0xbfc0000c);
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
+
+    #[test]
+
+    fn bltzal_emulate_not_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05300004);
+        cpu.reg[instr.rs()] = 0;
+        cpu.bltzal_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0);
+        assert_eq!(cpu.delay_state, DelayState::Normal)
+    }
+
+    #[test]
+    fn bgezal_emulate_taken_zero() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05310004);
+        cpu.reg[instr.rs()] = 0;
+        cpu.bgezal_emulate(instr);
+
+        assert_eq!(cpu.reg[Register::Ra], 0xbfc0000c);
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
+
+    #[test]
+
+    fn bgezal_emulate_taken_greater_than_zero() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05310004);
+        cpu.reg[instr.rs()] = 100;
+        cpu.bgezal_emulate(instr);
+
+        assert_eq!(cpu.reg[Register::Ra], 0xbfc0000c);
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
+
+    #[test]
+
+    fn bgezal_emulate_not_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x05310004);
+        cpu.reg[instr.rs()] = -101 as i32 as u32;
+        cpu.bgezal_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0);
+        assert_eq!(cpu.delay_state, DelayState::Normal)
+    }
+
+    #[test]
+    fn beq_emulate_taken() {
         let mut cpu = Cpu::new(false);
         cpu.pc = 0xbfc006ec;
 
@@ -831,7 +1102,7 @@ mod tests {
     }
 
     #[test]
-    fn beq_emulate_not_branches() {
+    fn beq_emulate_not_taken() {
         let mut cpu = Cpu::new(false);
         cpu.pc = 0xbfc006ec;
 
@@ -845,7 +1116,7 @@ mod tests {
     }
 
     #[test]
-    fn bne_emulate_branches() {
+    fn bne_emulate_taken() {
         let mut cpu = Cpu::new(false);
         cpu.pc = 0xbfc006ec;
 
@@ -859,7 +1130,7 @@ mod tests {
     }
 
     #[test]
-    fn bne_emulate_not_branches() {
+    fn bne_emulate_not_taken() {
         let mut cpu = Cpu::new(false);
         cpu.pc = 0xbfc006ec;
 
@@ -873,18 +1144,78 @@ mod tests {
     }
 
     #[test]
-    fn blez_emulate() {}
+    fn blez_emulate_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x19200004);
+        cpu.reg[instr.rs()] = 0;
+        cpu.blez_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
 
     #[test]
-    fn bgtz_emulate() {}
+    fn blez_emulate_taken_less_than_zero() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x19200004);
+        cpu.reg[instr.rs()] = -101 as i32 as u32;
+        cpu.blez_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
 
     #[test]
-    fn addi_emulate() {
+    fn blez_emulate_not_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x19200004);
+        cpu.reg[instr.rs()] = 100;
+        cpu.blez_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0);
+        assert_eq!(cpu.delay_state, DelayState::Normal)
+    }
+
+    #[test]
+    fn bgtz_emulate_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x1d200004);
+        cpu.reg[instr.rs()] = 42;
+        cpu.bgtz_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0xbfc00018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
+
+    #[test]
+    fn bgtz_emulate_not_taken() {
+        let mut cpu = Cpu::new(false);
+        cpu.pc = 0xbfc00004;
+
+        let instr = Instruction(0x1d200004);
+        cpu.reg[instr.rs()] = 0;
+        cpu.bgtz_emulate(instr);
+
+        assert_eq!(cpu.delay_pc, 0);
+        assert_eq!(cpu.delay_state, DelayState::Normal)
+    }
+
+    #[test]
+    fn addi_emulate() -> Result<()> {
         let mut cpu = Cpu::new(false);
         let instr = Instruction(0x20840080);
         cpu.reg[instr.rs()] = 42;
-        cpu.addi_emulate(instr);
+        cpu.addi_emulate(instr)?;
         assert_eq!(cpu.reg[Register::A0], 0xaa);
+        Ok(())
     }
 
     #[test]
@@ -1003,7 +1334,17 @@ mod tests {
     }
 
     #[test]
-    fn jal_emulate() {}
+    fn jal_emulate() {
+        let mut cpu = Cpu::new(false);
+        let instr = Instruction(0x0c100006);
+
+        cpu.pc = 0x00400000;
+        cpu.jal_emulate(instr);
+
+        assert_eq!(cpu.reg[Register::Ra], 0x00400008);
+        assert_eq!(cpu.delay_pc, 0x00400018);
+        assert_eq!(cpu.delay_state, DelayState::Delaying)
+    }
 
     #[test]
     fn ri_emulate() {}

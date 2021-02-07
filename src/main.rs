@@ -28,7 +28,7 @@ fn setup_logger(opts: &Opts) {
             TerminalMode::Stdout,
         ),
         WriteLogger::new(
-            LevelFilter::Debug,
+            LevelFilter::Trace,
             simplelog::Config::default(),
             File::create(log_file).expect("Failed to create log file"),
         ),

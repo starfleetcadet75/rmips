@@ -29,23 +29,23 @@ impl Default for DelayState {
 
 #[derive(Debug, Default)]
 pub struct Cpu {
-    /// Program counter
+    /// The program counter.
     pub pc: Address,
-    /// General-purpose registers
+    /// General-purpose registers.
     pub reg: [u32; 32],
-    /// The current instruction
+    /// The current instruction.
     pub instruction: Instruction,
-    /// High division result register
+    /// High division result register.
     pub high: u32,
-    /// Low division result register
+    /// Low division result register.
     pub low: u32,
-    /// Indicates whether the current instruction is in a delay slot
+    /// Indicates whether the current instruction is in a delay slot.
     pub delay_state: DelayState,
-    /// Saved target address for delayed branches
+    /// Saved target address for delayed branches.
     pub delay_pc: Address,
-    /// The System Control Coprocessor (CP0)
+    /// The System Control Coprocessor (CP0).
     pub cpzero: CPZero,
-    /// Capstone instance for disassembly
+    /// Capstone instance for disassembly.
     disassembler: Option<Capstone>,
 }
 
@@ -88,21 +88,25 @@ impl Cpu {
             let code = self.instruction.0.to_le_bytes();
             if let Ok(instr) = disassembler.disasm_count(&code, self.pc.into(), 1) {
                 // Should always be one instruction
-                let i = instr
-                    .iter()
-                    .next()
-                    .ok_or(RmipsError::InvalidInstruction(self.instruction.0))?;
-                println!(
-                    "PC=0x{:08x} [{:08x}]\t{:08x}  {} {}",
-                    self.pc,
-                    phys_pc,
-                    self.instruction.0,
-                    i.mnemonic().expect("capstone errored"),
-                    i.op_str().expect("capstone errored")
-                );
+                // There are a few valid instructions that Capstone seems to fail on
+                if let Some(i) = instr.iter().next() {
+                    println!(
+                        "PC=0x{:08x} [{:08x}]\t{:08x}  {} {}",
+                        self.pc,
+                        phys_pc,
+                        self.instruction.0,
+                        i.mnemonic().expect("capstone errored"),
+                        i.op_str().expect("capstone errored")
+                    );
+                } else {
+                    println!(
+                        "PC=0x{:08x} [{:08x}]\tDisassembly Failed: {:?}",
+                        self.pc, phys_pc, self.instruction
+                    );
+                }
             } else {
                 println!(
-                    "PC=0x{:08x} [{:08x}]\tDisassembly Failed:\n{:?}",
+                    "PC=0x{:08x} [{:08x}]\tDisassembly Failed: {:?}",
                     self.pc, phys_pc, self.instruction
                 );
             }
@@ -120,7 +124,7 @@ impl Cpu {
                 0x07 => self.srav_emulate(instr),
                 0x08 => self.jr_emulate(instr),
                 0x09 => self.jalr_emulate(instr),
-                0x0c => self.syscall_emulate(),
+                0x0c => self.syscall_emulate()?,
                 0x0d => self.break_emulate()?,
                 0x10 => self.mfhi_emulate(instr),
                 0x11 => self.mthi_emulate(instr),
@@ -130,9 +134,9 @@ impl Cpu {
                 0x19 => self.multu_emulate(instr),
                 0x1a => self.div_emulate(instr),
                 0x1b => self.divu_emulate(instr),
-                0x20 => self.add_emulate(instr),
+                0x20 => self.add_emulate(instr)?,
                 0x21 => self.addu_emulate(instr),
-                0x22 => self.sub_emulate(instr),
+                0x22 => self.sub_emulate(instr)?,
                 0x23 => self.subu_emulate(instr),
                 0x24 => self.and_emulate(instr),
                 0x25 => self.or_emulate(instr),
@@ -140,14 +144,14 @@ impl Cpu {
                 0x27 => self.nor_emulate(instr),
                 0x2a => self.slt_emulate(instr),
                 0x2b => self.sltu_emulate(instr),
-                _ => self.ri_emulate(instr),
+                _ => self.ri_emulate()?,
             },
             0x01 => match instr.rt() {
                 0 => self.bltz_emulate(instr),
                 1 => self.bgez_emulate(instr),
                 16 => self.bltzal_emulate(instr),
                 17 => self.bgezal_emulate(instr),
-                _ => self.ri_emulate(instr),
+                _ => self.ri_emulate()?,
             },
             0x02 => self.j_emulate(instr),
             0x03 => self.jal_emulate(instr),
@@ -155,7 +159,7 @@ impl Cpu {
             0x05 => self.bne_emulate(instr),
             0x06 => self.blez_emulate(instr),
             0x07 => self.bgtz_emulate(instr),
-            0x08 => self.addi_emulate(instr),
+            0x08 => self.addi_emulate(instr)?,
             0x09 => self.addiu_emulate(instr),
             0x0a => self.slti_emulate(instr),
             0x0b => self.sltiu_emulate(instr),
@@ -174,14 +178,14 @@ impl Cpu {
                         6 => self.cpzero.tlbwr_emulate(),
                         8 => self.cpzero.tlbp_emulate(),
                         16 => self.cpzero.rfe_emulate(),
-                        _ => self.exception(ExceptionCode::ReservedInstruction),
+                        _ => self.exception(ExceptionCode::ReservedInstruction)?,
                     }
                 } else {
                     match rs {
                         0 => self.mfc0_emulate(instr),
                         4 => self.mtc0_emulate(instr),
                         8 => self.cpzero.bc0x_emulate(instr, self.pc),
-                        _ => self.exception(ExceptionCode::ReservedInstruction),
+                        _ => self.exception(ExceptionCode::ReservedInstruction)?,
                     }
                 }
             }
@@ -189,11 +193,11 @@ impl Cpu {
             0x12 => self.coprocessor_unimpl(2, instr),
             0x13 => self.coprocessor_unimpl(3, instr),
             0x20 => self.lb_emulate(memory, instr)?,
-            0x21 => self.lh_emulate(instr),
+            0x21 => self.lh_emulate(memory, instr)?,
             0x22 => self.lwl_emulate(instr),
             0x23 => self.lw_emulate(memory, instr)?,
             0x24 => self.lbu_emulate(memory, instr)?,
-            0x25 => self.lhu_emulate(instr),
+            0x25 => self.lhu_emulate(memory, instr)?,
             0x26 => self.lwr_emulate(instr),
             0x28 => self.sb_emulate(memory, instr)?,
             0x29 => self.sh_emulate(memory, instr)?,
@@ -206,7 +210,7 @@ impl Cpu {
             0x38 => self.swc1_emulate(instr),
             0x39 => self.swc2_emulate(instr),
             0x3a => self.swc3_emulate(instr),
-            _ => self.ri_emulate(instr),
+            _ => self.ri_emulate()?,
         }
 
         // Register $r0 is hardwired to a value of zero
@@ -243,19 +247,29 @@ impl Cpu {
             )
         }
 
-        self.exception(ExceptionCode::CoprocessorUnusable);
+        self.exception(ExceptionCode::CoprocessorUnusable).unwrap();
     }
 
-    pub fn exception(&mut self, exception_code: ExceptionCode) {
+    pub fn exception(&mut self, exception_code: ExceptionCode) -> Result<()> {
         match exception_code {
-            ExceptionCode::ReservedInstruction => warn!("Encountered a reserved instruction"),
-            ExceptionCode::Overflow => {
-                warn!("Arithmetic overflow occurred");
+            ExceptionCode::InstructionBusError => {
+                warn!("Instruction bus error occurred");
+                return Err(RmipsError::Halt);
             }
+            ExceptionCode::Break => {
+                warn!("BREAK instruction reached");
+                return Err(RmipsError::Halt);
+            }
+            ExceptionCode::ReservedInstruction => warn!(
+                "Encountered a reserved instruction:\n{:?}",
+                self.instruction
+            ),
+            ExceptionCode::Overflow => warn!("Arithmetic overflow occurred"),
             _ => {}
         }
 
         self.cpzero.exception(self.pc, exception_code);
+        Ok(())
     }
 }
 

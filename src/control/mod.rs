@@ -22,6 +22,7 @@ pub const KSEG2: Address = 0xc0000000;
 /// Second half of mapped and cached kernel segment
 pub const KSEG2_TOP: Address = 0xe0000000;
 
+/// Possible exception codes stored in the `Cause` register.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ExceptionCode {
     /// External interrupt
