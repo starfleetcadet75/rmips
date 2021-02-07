@@ -43,6 +43,8 @@ pub struct Cpu {
     pub delay_state: DelayState,
     /// Saved target address for delayed branches.
     pub delay_pc: Address,
+    /// Indicates whether an exception is waiting to be handled.
+    pub exception_pending: bool,
     /// The System Control Coprocessor (CP0).
     pub cpzero: CPZero,
     /// Capstone instance for disassembly.
@@ -77,6 +79,8 @@ impl Cpu {
 
     /// Decodes and executes the next instruction according to the value in the program counter
     pub fn step(&mut self, memory: &mut impl Memory) -> Result<()> {
+        self.exception_pending = false;
+
         // Get the physical address of the next instruction
         let phys_pc = self.cpzero.translate(self.pc);
 
@@ -189,9 +193,9 @@ impl Cpu {
                     }
                 }
             }
-            0x11 => self.coprocessor_unimpl(1, instr),
-            0x12 => self.coprocessor_unimpl(2, instr),
-            0x13 => self.coprocessor_unimpl(3, instr),
+            0x11 => self.coprocessor_unimpl(1, instr)?,
+            0x12 => self.coprocessor_unimpl(2, instr)?,
+            0x13 => self.coprocessor_unimpl(3, instr)?,
             0x20 => self.lb_emulate(memory, instr)?,
             0x21 => self.lh_emulate(memory, instr)?,
             0x22 => self.lwl_emulate(instr),
@@ -204,18 +208,26 @@ impl Cpu {
             0x2a => self.swl_emulate(instr),
             0x2b => self.sw_emulate(memory, instr)?,
             0x2e => self.swr_emulate(instr),
-            0x31 => self.lwc1_emulate(instr),
-            0x32 => self.lwc2_emulate(instr),
-            0x33 => self.lwc3_emulate(instr),
-            0x38 => self.swc1_emulate(instr),
-            0x39 => self.swc2_emulate(instr),
-            0x3a => self.swc3_emulate(instr),
+            0x31 => self.lwc1_emulate(instr)?,
+            0x32 => self.lwc2_emulate(instr)?,
+            0x33 => self.lwc3_emulate(instr)?,
+            0x38 => self.swc1_emulate(instr)?,
+            0x39 => self.swc2_emulate(instr)?,
+            0x3a => self.swc3_emulate(instr)?,
             _ => self.ri_emulate()?,
         }
 
         // Register $r0 is hardwired to a value of zero
         // It can be written to by instructions however the result is always discarded
         self.reg[Register::Zero] = 0;
+
+        // The program counter is already updated to contain the address
+        // of the exception handler in the `exception` function
+        if self.exception_pending {
+            // The first instruction in the exception handler will never be in a delay slot
+            self.delay_state = DelayState::Normal;
+            return Ok(());
+        }
 
         // Update the program counter
         // `DelayState` tracks whether the current instruction should be executed from the delay slot
@@ -237,7 +249,7 @@ impl Cpu {
         Ok(())
     }
 
-    pub fn coprocessor_unimpl(&mut self, coprocno: u32, instr: Instruction) {
+    pub fn coprocessor_unimpl(&mut self, coprocno: u32, instr: Instruction) -> Result<()> {
         if self.cpzero.coprocessor_usable(coprocno) {
             error!(
                 "CP{} instruction {:x} is not implemented at PC={:08x}",
@@ -247,7 +259,7 @@ impl Cpu {
             )
         }
 
-        self.exception(ExceptionCode::CoprocessorUnusable).unwrap();
+        self.exception(ExceptionCode::CoprocessorUnusable)
     }
 
     pub fn exception(&mut self, exception_code: ExceptionCode) -> Result<()> {
@@ -268,7 +280,40 @@ impl Cpu {
             _ => {}
         }
 
-        self.cpzero.exception(self.pc, exception_code);
+        // Prioritize the exception
+        // TODO
+
+        // Update the CP0 state to enter the exception
+        self.cpzero.exception(
+            self.pc,
+            exception_code,
+            self.delay_state == DelayState::Delayslot,
+        );
+
+        // The base of the exception handler address is determined by the BEV bit in the CP0 Status register.
+        // The CPU initially uses the ROM (kseg1) space exception entry point at boot but will typically
+        // be switched to use user supplied exception service routines.
+        let base: Address = if self.cpzero.boot_exception_vector_enabled() {
+            0xbfc00100
+        } else {
+            0x80000000
+        };
+
+        // If the exception was a TLB miss jump to the User TLB Miss exception vector.
+        // Otherwise jump to the common exception vector.
+        let vector = if (exception_code == ExceptionCode::TlbLoad
+            || exception_code == ExceptionCode::TlbStore)
+            && self.cpzero.tlb_miss_user
+        {
+            0x000
+        } else {
+            0x080
+        };
+
+        // Transfer control to the exception entry point where emulation will continue
+        self.pc = base + vector;
+        self.exception_pending = true;
+
         Ok(())
     }
 }

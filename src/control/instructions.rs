@@ -462,33 +462,33 @@ impl Cpu {
     }
 
     /// Load word from CP1
-    pub fn lwc1_emulate(&mut self, instr: Instruction) {
-        self.coprocessor_unimpl(1, instr);
+    pub fn lwc1_emulate(&mut self, instr: Instruction) -> Result<()> {
+        self.coprocessor_unimpl(1, instr)
     }
 
     /// Load word from CP2
-    pub fn lwc2_emulate(&mut self, instr: Instruction) {
-        self.coprocessor_unimpl(1, instr);
+    pub fn lwc2_emulate(&mut self, instr: Instruction) -> Result<()> {
+        self.coprocessor_unimpl(1, instr)
     }
 
     /// Load word from CP3
-    pub fn lwc3_emulate(&mut self, instr: Instruction) {
-        self.coprocessor_unimpl(1, instr);
+    pub fn lwc3_emulate(&mut self, instr: Instruction) -> Result<()> {
+        self.coprocessor_unimpl(1, instr)
     }
 
     /// Store word from CP1
-    pub fn swc1_emulate(&mut self, instr: Instruction) {
-        self.coprocessor_unimpl(1, instr);
+    pub fn swc1_emulate(&mut self, instr: Instruction) -> Result<()> {
+        self.coprocessor_unimpl(1, instr)
     }
 
     /// Store word from CP2
-    pub fn swc2_emulate(&mut self, instr: Instruction) {
-        self.coprocessor_unimpl(2, instr);
+    pub fn swc2_emulate(&mut self, instr: Instruction) -> Result<()> {
+        self.coprocessor_unimpl(2, instr)
     }
 
     /// Store word from CP3
-    pub fn swc3_emulate(&mut self, instr: Instruction) {
-        self.coprocessor_unimpl(3, instr);
+    pub fn swc3_emulate(&mut self, instr: Instruction) -> Result<()> {
+        self.coprocessor_unimpl(3, instr)
     }
 
     /// Jump

@@ -1,5 +1,5 @@
 use crate::control::instruction::Instruction;
-use crate::control::registers::{Cp0Register, IndexMask, RandomMask, StatusMask};
+use crate::control::registers::{CauseMask, Cp0Register, IndexMask, RandomMask, StatusMask};
 use crate::control::tlbentry::TlbEntry;
 use crate::control::{
     ExceptionCode, KERNEL_SPACE_MASK, KSEG0, KSEG1, KSEG2, KSEG2_TOP, KSEG_SELECT_MASK, KUSEG,
@@ -13,6 +13,7 @@ const RANDOM_UPPER_BOUND: u32 = 63;
 #[derive(Copy, Clone, Debug)]
 pub struct CPZero {
     pub reg: [u32; 32],
+    pub tlb_miss_user: bool,
     tlb: [TlbEntry; TLB_ENTRIES],
 }
 
@@ -20,6 +21,7 @@ impl Default for CPZero {
     fn default() -> Self {
         CPZero {
             reg: [0; 32],
+            tlb_miss_user: false,
             tlb: [TlbEntry::default(); TLB_ENTRIES],
         }
     }
@@ -94,20 +96,34 @@ impl CPZero {
 
     /// Handles processor exceptions by updating the state of `CPZero`.
     /// See Chapter 4-3 Exception Management in IDT R30xx Manual.
-    pub fn exception(&mut self, pc: Address, _exception_code: ExceptionCode) {
+    pub fn exception(&mut self, pc: Address, exception_code: ExceptionCode, delayslot: bool) {
         // Save current PC in the EPC register to point to the restart location
         self.reg[Cp0Register::Epc] = pc;
 
         // Switch to kernel-mode and disable interrupts
         self.reg[Cp0Register::Status] &= !(StatusMask::KUC.bits() | StatusMask::IEC.bits());
 
-        // Cause is setup so that software can see the reason for the exception.
-        // On address exceptions BadVaddr is also set.
-        // Memory management system exceptions set up some of the MMU registers too; see the chapter on memory management for more
-        // detail.
-        self.reg[Cp0Register::Cause] = 1;
+        // Clear the Cause register
+        self.reg[Cp0Register::Cause] = 0;
 
-        // Transfer control to the exception entry point
+        // Set Cause register CE field if this is a Coprocessor Unusable exception
+        if exception_code == ExceptionCode::CoprocessorUnusable {
+            // TODO: This should be the coprocessor number that caused the error
+            self.reg[Cp0Register::Cause] |= CauseMask::CE.bits();
+        }
+
+        // Save the ExcCode in the Cause register
+        self.reg[Cp0Register::Cause] |= (exception_code as u32) << 2;
+
+        // If the exception occurred from a delay slot, EPC does not point to the actual exception
+        // instruction but rather to the branch instruction which immediately precedes it.
+        // This is indicated by setting the BD bit.
+        if delayslot {
+            self.reg[Cp0Register::Cause] |= CauseMask::BD.bits();
+        }
+
+        // Set the interrupt pending field of the Cause register
+        // TODO
     }
 
     /// Read Indexed TLB Entry
@@ -164,6 +180,11 @@ impl CPZero {
     pub fn interrupts_enabled(&self) -> bool {
         (self.reg[Cp0Register::Status] & StatusMask::IEC.bits()) == 1
     }
+
+    /// Returns true if the Bootstrap Exception Vector is enabled.
+    pub fn boot_exception_vector_enabled(&self) -> bool {
+        (self.reg[Cp0Register::Status] & StatusMask::BEV.bits()) != 0
+    }
 }
 
 #[cfg(test)]
@@ -178,10 +199,49 @@ mod tests {
 
         assert!(cp0.kernel_mode());
         assert!(!cp0.interrupts_enabled());
+        assert!(cp0.boot_exception_vector_enabled());
+        assert!(!cp0.coprocessor_usable(0));
+        assert!(!cp0.coprocessor_usable(1));
+        assert!(!cp0.coprocessor_usable(2));
+        assert!(!cp0.coprocessor_usable(3));
         assert_eq!(
             (cp0.reg[Cp0Register::Random] & RandomMask::VAL.bits()) >> 8,
             RANDOM_UPPER_BOUND
         );
+    }
+
+    #[test]
+    fn cpzero_exception_coprocessor_unusable() {
+        let mut cp0 = CPZero::new();
+        cp0.reset();
+
+        cp0.exception(0xbfc00400, ExceptionCode::CoprocessorUnusable, false);
+        assert!(cp0.kernel_mode());
+        assert!(!cp0.interrupts_enabled());
+
+        assert!(cp0.reg[Cp0Register::Cause] & CauseMask::CE.bits() != 0);
+        assert!(
+            (cp0.reg[Cp0Register::Cause] & CauseMask::EXCODE.bits()) >> 2
+                == ExceptionCode::CoprocessorUnusable as u32
+        );
+        assert!(cp0.reg[Cp0Register::Cause] & CauseMask::BD.bits() == 0);
+    }
+
+    #[test]
+    fn cpzero_exception_interrupt() {
+        let mut cp0 = CPZero::new();
+        cp0.reset();
+
+        cp0.exception(0xbfc00400, ExceptionCode::Interrupt, true);
+        assert!(cp0.kernel_mode());
+        assert!(!cp0.interrupts_enabled());
+
+        assert!(cp0.reg[Cp0Register::Cause] & CauseMask::CE.bits() == 0);
+        assert!(
+            (cp0.reg[Cp0Register::Cause] & CauseMask::EXCODE.bits()) >> 2
+                == ExceptionCode::Interrupt as u32
+        );
+        assert!(cp0.reg[Cp0Register::Cause] & CauseMask::BD.bits() != 0);
     }
 
     #[test]

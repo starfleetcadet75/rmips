@@ -158,3 +158,18 @@ bitflags! {
         const IEC = 0b0000_0000_0000_0000_0000_0000_0000_0001;
     }
 }
+
+bitflags! {
+    /// Bitmasks for extracting fields from the Cause register.
+    /// See Figure 3.3 in IDT R30xx Manual on page 3-7.
+    pub struct CauseMask: u32 {
+        /// Exception Code
+        const EXCODE = 0b0000_0000_0000_0000_0000_0000_0111_1100;
+        /// Interrupt Pending
+        const IP = 0b0000_0000_0000_0000_1111_1111_0000_0000;
+        // Co-processor Error
+        const CE = 0b0011_0000_0000_0000_0000_0000_0000_0000;
+        // Branch Delay
+        const BD = 0b1000_0000_0000_0000_0000_0000_0000_0000;
+    }
+}
