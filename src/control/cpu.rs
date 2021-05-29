@@ -321,55 +321,31 @@ impl Cpu {
 #[rustfmt::skip]
 impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: Better way? https://github.com/d0iasm/rvemu-for-book/blob/master/02/src/cpu.rs#L33
+        let mut output = String::from("");
+        let abi = [
+            "zero", " at ", " v0 ", " v1 ", " a0 ", " a1 ", " a2 ", " a3 ", " t0 ", " t1 ", " t2 ",
+            " t3 ", " t4 ", " t5 ", " t6 ", " t7 ", " s0 ", " s1 ", " s2 ", " s3 ", " s4 ", " s5 ",
+            " s6 ", " s7 ", " t8 ", " t9 ", " k0 ", " k1 ", " gp ", " sp ", " fp ", " ra ",
+        ];
 
-        let result = [
-            "           zero       at       v0       v1       a0       a1       a2       a3".to_string(),
-            format!(
-                "  R0   {}",
-                (0..=7)
-                    .map(|i| { format!("{:08x}", self.reg[i]) })
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ),
-            "             t0       t1       t2       t3       t4       t5       t6       t7".to_string(),
-            format!(
-                "  R8   {}",
-                (8..=15)
-                    .map(|i| { format!("{:08x}", self.reg[i]) })
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ),
-            "             s0       s1       s2       s3       s4       s5       s6       s7".to_string(),
-            format!(
-                "  R16  {}",
-                (16..=23)
-                    .map(|i| { format!("{:08x}", self.reg[i]) })
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ),
-            "             t8       t9       k0       k1       gp       sp       s8       ra".to_string(),
-            format!(
-                "  R24  {}",
-                (24..=31)
-                    .map(|i| { format!("{:08x}", self.reg[i]) })
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ),
-            "             sr       lo       hi      bad    cause       pc".to_string(),
-            format!("       {:08x} {:08x} {:08x} {:08x} {:08x} {:08x}",
-                self.cpzero.status.bits,
-                self.low,
-                self.high,
-                self.cpzero.badvaddr.address,
-                self.cpzero.cause.bits,
-                self.pc
-            ),
-            // format!("            fsr      fir"),
-            // format!("       {:08x} {:08x}", self.cpone.reg[cpone::FSR], self.cpone.reg[cpone::FIR]),
-        ]
-        .join("\n");
+        for i in (0..32).step_by(4) {
+            output = format!(
+                "{}\n{}",
+                output,
+                format!(
+                    "{} = {:>#10x} {} = {:>#10x} {} = {:>#10x} {} = {:>#10x}",
+                    abi[i],
+                    self.reg[i],
+                    abi[i + 1],
+                    self.reg[i + 1],
+                    abi[i + 2],
+                    self.reg[i + 2],
+                    abi[i + 3],
+                    self.reg[i + 3],
+                )
+            );
+        }
 
-        write!(f, "{}", result)
+        write!(f, "{}", output)
     }
 }
