@@ -4,9 +4,9 @@ use capstone::prelude::*;
 use log::{error, warn};
 
 use crate::control::cpzero::CPZero;
+use crate::control::exception::Exception;
 use crate::control::instruction::Instruction;
-use crate::control::registers::{Cp0Register, Register};
-use crate::control::ExceptionCode;
+use crate::control::registers::Register;
 use crate::memory::Memory;
 use crate::util::error::{Result, RmipsError};
 use crate::Address;
@@ -182,14 +182,14 @@ impl Cpu {
                         6 => self.cpzero.tlbwr_emulate(),
                         8 => self.cpzero.tlbp_emulate(),
                         16 => self.cpzero.rfe_emulate(),
-                        _ => self.exception(ExceptionCode::ReservedInstruction)?,
+                        _ => self.exception(Exception::ReservedInstruction)?,
                     }
                 } else {
                     match rs {
                         0 => self.mfc0_emulate(instr),
                         4 => self.mtc0_emulate(instr),
                         8 => self.cpzero.bc0x_emulate(instr, self.pc),
-                        _ => self.exception(ExceptionCode::ReservedInstruction)?,
+                        _ => self.exception(Exception::ReservedInstruction)?,
                     }
                 }
             }
@@ -259,24 +259,24 @@ impl Cpu {
             )
         }
 
-        self.exception(ExceptionCode::CoprocessorUnusable)
+        self.exception(Exception::CoprocessorUnusable)
     }
 
-    pub fn exception(&mut self, exception_code: ExceptionCode) -> Result<()> {
-        match exception_code {
-            ExceptionCode::InstructionBusError => {
+    pub fn exception(&mut self, exception: Exception) -> Result<()> {
+        match exception {
+            Exception::InstructionBusError => {
                 warn!("Instruction bus error occurred");
                 return Err(RmipsError::Halt);
             }
-            ExceptionCode::Break => {
+            Exception::Breakpoint => {
                 warn!("BREAK instruction reached");
                 return Err(RmipsError::Halt);
             }
-            ExceptionCode::ReservedInstruction => warn!(
+            Exception::ReservedInstruction => warn!(
                 "Encountered a reserved instruction:\n{:?}",
                 self.instruction
             ),
-            ExceptionCode::Overflow => warn!("Arithmetic overflow occurred"),
+            Exception::Overflow => warn!("Arithmetic overflow occurred"),
             _ => {}
         }
 
@@ -286,7 +286,7 @@ impl Cpu {
         // Update the CP0 state to enter the exception
         self.cpzero.exception(
             self.pc,
-            exception_code,
+            exception,
             self.delay_state == DelayState::Delayslot,
         );
 
@@ -301,8 +301,8 @@ impl Cpu {
 
         // If the exception was a TLB miss jump to the User TLB Miss exception vector.
         // Otherwise jump to the common exception vector.
-        let vector = if (exception_code == ExceptionCode::TlbLoad
-            || exception_code == ExceptionCode::TlbStore)
+        let vector = if (exception == Exception::TLBLoadMiss
+            || exception == Exception::TLBStoreMiss)
             && self.cpzero.tlb_miss_user
         {
             0x000
@@ -321,6 +321,8 @@ impl Cpu {
 #[rustfmt::skip]
 impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO: Better way? https://github.com/d0iasm/rvemu-for-book/blob/master/02/src/cpu.rs#L33
+
         let result = [
             "           zero       at       v0       v1       a0       a1       a2       a3".to_string(),
             format!(
@@ -356,11 +358,11 @@ impl fmt::Display for Cpu {
             ),
             "             sr       lo       hi      bad    cause       pc".to_string(),
             format!("       {:08x} {:08x} {:08x} {:08x} {:08x} {:08x}",
-                self.cpzero.reg[Cp0Register::Status],
+                self.cpzero.status.bits,
                 self.low,
                 self.high,
-                self.cpzero.reg[Cp0Register::BadVaddr],
-                self.cpzero.reg[Cp0Register::Cause],
+                self.cpzero.badvaddr.address,
+                self.cpzero.cause.bits,
                 self.pc
             ),
             // format!("            fsr      fir"),

@@ -14,7 +14,7 @@ fn arithmetic_program() -> Result<()> {
 
     let mut emulator = Emulator::new(opts)?;
     let result = emulator.run();
-    assert!(result.is_ok(), true);
+    assert_eq!(result.is_ok(), true);
 
     assert_eq!(emulator.cpu.reg[Register::S0], 0xffffffff);
     assert_eq!(emulator.cpu.reg[Register::S1], 0xfffffff1);
@@ -39,7 +39,7 @@ fn bitwise_program() -> Result<()> {
 
     let mut emulator = Emulator::new(opts)?;
     let result = emulator.run();
-    assert!(result.is_ok(), true);
+    assert_eq!(result.is_ok(), true);
 
     assert_eq!(emulator.cpu.reg[Register::V0], 0xff);
     assert_eq!(emulator.cpu.reg[Register::V1], 0x7f);
@@ -65,7 +65,7 @@ fn branch_program() -> Result<()> {
 
     let mut emulator = Emulator::new(opts)?;
     let result = emulator.run();
-    assert!(result.is_ok(), true);
+    assert_eq!(result.is_ok(), true);
 
     assert_eq!(emulator.cpu.reg[Register::A2], 42);
     Ok(())
@@ -79,7 +79,7 @@ fn logic_program() -> Result<()> {
 
     let mut emulator = Emulator::new(opts)?;
     let result = emulator.run();
-    assert!(result.is_ok(), true);
+    assert_eq!(result.is_ok(), true);
 
     assert_eq!(emulator.cpu.reg[Register::A0], 0xffff0040);
     assert_eq!(emulator.cpu.reg[Register::A1], 0xffbf);
@@ -97,7 +97,7 @@ fn memory_program() -> Result<()> {
 
     let mut emulator = Emulator::new(opts)?;
     let result = emulator.run();
-    assert!(result.is_ok(), true);
+    assert_eq!(result.is_ok(), true);
 
     assert_eq!(emulator.cpu.reg[Register::A0], 0xf);
     assert_eq!(emulator.cpu.reg[Register::A1], 0x0f0f);

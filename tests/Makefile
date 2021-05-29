@@ -26,19 +26,19 @@ memory.rom: memory.elf
 	$(OBJCOPY) -O binary $(BUILD_DIR)/memory.elf $(BUILD_DIR)/memory.rom
 
 arithmetic.elf: arithmetic.o
-	$(LD) -EL -T ld.script -o $(BUILD_DIR)/arithmetic.elf $(BUILD_DIR)/arithmetic.o
+	$(LD) -EL -T link.ld -o $(BUILD_DIR)/arithmetic.elf $(BUILD_DIR)/arithmetic.o
 
 bitwise.elf: bitwise.o
-	$(LD) -EL -T ld.script -o $(BUILD_DIR)/bitwise.elf $(BUILD_DIR)/bitwise.o
+	$(LD) -EL -T link.ld -o $(BUILD_DIR)/bitwise.elf $(BUILD_DIR)/bitwise.o
 
 branch.elf: branch.o
-	$(LD) -EL -T ld.script -o $(BUILD_DIR)/branch.elf $(BUILD_DIR)/branch.o
+	$(LD) -EL -T link.ld -o $(BUILD_DIR)/branch.elf $(BUILD_DIR)/branch.o
 
 logic.elf: logic.o
-	$(LD) -EL -T ld.script -o $(BUILD_DIR)/logic.elf $(BUILD_DIR)/logic.o
+	$(LD) -EL -T link.ld -o $(BUILD_DIR)/logic.elf $(BUILD_DIR)/logic.o
 
 memory.elf: memory.o
-	$(LD) -EL -T ld.script -o $(BUILD_DIR)/memory.elf $(BUILD_DIR)/memory.o
+	$(LD) -EL -T link.ld -o $(BUILD_DIR)/memory.elf $(BUILD_DIR)/memory.o
 
 arithmetic.o: $(SRC_DIR)/arithmetic.s
 	$(CC) $(CFLAGS) -EL -c -x assembler-with-cpp -o $(BUILD_DIR)/arithmetic.o $(SRC_DIR)/arithmetic.s

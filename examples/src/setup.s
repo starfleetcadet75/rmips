@@ -8,7 +8,7 @@
 #define MEM_BASE 0xa0000000
 #define MEM_SIZE 0x100000
 #define DATA_START MEM_BASE + (MEM_SIZE * 3 / 4)
-#define INIT_STACK_BASE	DATA_START - 4
+#define INIT_STACK_BASE DATA_START - 4
 #define NTLBENTRIES 64
 
 .text

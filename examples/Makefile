@@ -17,10 +17,10 @@ emptymain_be.rom: emptymain_be.elf
 	$(OBJCOPY) -O binary $(BUILD_DIR)/emptymain_be.elf $(BUILD_DIR)/emptymain_be.rom
 
 emptymain_le.elf: emptymain_le.o setup_le.o
-	$(LD) -EL -T ld.script -o $(BUILD_DIR)/emptymain_le.elf $(BUILD_DIR)/setup_le.o $(BUILD_DIR)/emptymain_le.o
+	$(LD) -EL -T link.ld -o $(BUILD_DIR)/emptymain_le.elf $(BUILD_DIR)/setup_le.o $(BUILD_DIR)/emptymain_le.o
 
 emptymain_be.elf: emptymain_be.o setup_be.o
-	$(LD) -EB -T ld.script -o $(BUILD_DIR)/emptymain_be.elf $(BUILD_DIR)/setup_be.o $(BUILD_DIR)/emptymain_be.o
+	$(LD) -EB -T link.ld -o $(BUILD_DIR)/emptymain_be.elf $(BUILD_DIR)/setup_be.o $(BUILD_DIR)/emptymain_be.o
 
 emptymain_le.o: $(SRC_DIR)/emptymain.c
 	$(CC) $(CFLAGS) -EL -o $(BUILD_DIR)/emptymain_le.o -c $(SRC_DIR)/emptymain.c

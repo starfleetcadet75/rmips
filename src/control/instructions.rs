@@ -1,9 +1,10 @@
 //! This module contains the helper functions that are used by the `Cpu` for executing instructions.
+use std::convert::TryFrom;
 
 use crate::control::cpu::{Cpu, DelayState};
+use crate::control::exception::Exception;
 use crate::control::instruction::Instruction;
-use crate::control::registers::Register;
-use crate::control::ExceptionCode;
+use crate::control::registers::{Cp0Register, Register};
 use crate::memory::Memory;
 use crate::util::error::Result;
 use crate::Address;
@@ -54,12 +55,12 @@ impl Cpu {
 
     /// System call
     pub fn syscall_emulate(&mut self) -> Result<()> {
-        self.exception(ExceptionCode::Syscall)
+        self.exception(Exception::Syscall)
     }
 
     /// Break
     pub fn break_emulate(&mut self) -> Result<()> {
-        self.exception(ExceptionCode::Break)
+        self.exception(Exception::Breakpoint)
     }
 
     /// Move from HI register
@@ -123,7 +124,7 @@ impl Cpu {
         let (result, carry) = rs.overflowing_add(rt);
 
         if carry {
-            self.exception(ExceptionCode::Overflow)
+            self.exception(Exception::Overflow)
         } else {
             self.reg[instr.rd()] = result;
             Ok(())
@@ -144,7 +145,7 @@ impl Cpu {
         let (result, carry) = rs.overflowing_sub(rt);
 
         if carry {
-            self.exception(ExceptionCode::Overflow)
+            self.exception(Exception::Overflow)
         } else {
             self.reg[instr.rd()] = result;
             Ok(())
@@ -283,7 +284,7 @@ impl Cpu {
         let (result, carry) = rs.overflowing_add(imm);
 
         if carry {
-            self.exception(ExceptionCode::Overflow)
+            self.exception(Exception::Overflow)
         } else {
             self.reg[instr.rt()] = result;
             Ok(())
@@ -338,7 +339,7 @@ impl Cpu {
 
         // Check for a halfword-aligned address
         if vaddress % 2 != 0 {
-            self.exception(ExceptionCode::LoadAddressError)
+            self.exception(Exception::AddressLoadError)
         } else {
             let paddress = self.cpzero.translate(vaddress);
             let data = memory.fetch_halfword(paddress)? as i16; // Sign-extend the word first
@@ -362,7 +363,7 @@ impl Cpu {
         // If either of the two least-significant bits of the virtual address
         // are non-zero a load address exception occurs
         if vaddress % 4 != 0 {
-            self.exception(ExceptionCode::LoadAddressError)
+            self.exception(Exception::AddressLoadError)
         } else {
             let paddress = self.cpzero.translate(vaddress);
             let data = memory.fetch_word(paddress)?;
@@ -391,7 +392,7 @@ impl Cpu {
 
         // Check for a halfword-aligned address
         if vaddress % 2 != 0 {
-            self.exception(ExceptionCode::LoadAddressError)
+            self.exception(Exception::AddressLoadError)
         } else {
             let paddress = self.cpzero.translate(vaddress);
             let data = memory.fetch_halfword(paddress)?;
@@ -425,7 +426,7 @@ impl Cpu {
         // If the least-significant bit of the virtual address
         // is non-zero, a store address exception occurs
         if vaddress % 2 != 0 {
-            self.exception(ExceptionCode::StoreAddressError)?;
+            self.exception(Exception::AddressStoreError)?;
         } else {
             let paddress = self.cpzero.translate(vaddress);
             memory.store_halfword(paddress, data)?;
@@ -448,7 +449,7 @@ impl Cpu {
         // If either of the two least-significant bits of the virtual address
         // are non-zero, a store address exception occurs
         if vaddress % 4 != 0 {
-            self.exception(ExceptionCode::StoreAddressError)?;
+            self.exception(Exception::AddressStoreError)?;
         } else {
             let paddress = self.cpzero.translate(vaddress);
             memory.store_word(paddress, data)?;
@@ -506,17 +507,45 @@ impl Cpu {
 
     /// Move From System Control Coprocessor
     pub fn mfc0_emulate(&mut self, instr: Instruction) {
-        self.reg[instr.rt()] = self.cpzero.reg[instr.rd()];
+        let rd = Cp0Register::try_from(instr.rd() as u32)
+            .expect("invalid cp0 register number encountered");
+        self.reg[instr.rt()] = match rd {
+            Cp0Register::Index => self.cpzero.index.into(),
+            Cp0Register::Random => self.cpzero.random.into(),
+            Cp0Register::EntryLo => self.cpzero.entrylo.into(),
+            Cp0Register::Context => self.cpzero.context.into(),
+            Cp0Register::BadVaddr => self.cpzero.badvaddr.into(),
+            Cp0Register::EntryHi => self.cpzero.entryhi.into(),
+            Cp0Register::Status => self.cpzero.status.into(),
+            Cp0Register::Cause => self.cpzero.cause.into(),
+            Cp0Register::Epc => self.cpzero.epc.into(),
+            Cp0Register::Prid => self.cpzero.prid.into(),
+        };
     }
 
     /// Move To System Control Coprocessor
     pub fn mtc0_emulate(&mut self, instr: Instruction) {
-        self.cpzero.reg[instr.rd()] = self.reg[instr.rt()];
+        let rt = self.reg[instr.rt()];
+        let rd = Cp0Register::try_from(instr.rd() as u32)
+            .expect("invalid cp0 register number encountered");
+
+        match rd {
+            Cp0Register::Index => self.cpzero.index = rt.into(),
+            Cp0Register::Random => self.cpzero.random = rt.into(),
+            Cp0Register::EntryLo => self.cpzero.entrylo = rt.into(),
+            Cp0Register::Context => self.cpzero.context = rt.into(),
+            Cp0Register::BadVaddr => self.cpzero.badvaddr = rt.into(),
+            Cp0Register::EntryHi => self.cpzero.entryhi = rt.into(),
+            Cp0Register::Status => self.cpzero.status = rt.into(),
+            Cp0Register::Cause => self.cpzero.cause = rt.into(),
+            Cp0Register::Epc => self.cpzero.epc = rt.into(),
+            Cp0Register::Prid => self.cpzero.prid = rt.into(),
+        }
     }
 
     /// Reserved instruction
     pub fn ri_emulate(&mut self) -> Result<()> {
-        self.exception(ExceptionCode::ReservedInstruction)
+        self.exception(Exception::ReservedInstruction)
     }
 
     fn srl(&self, a: u32, b: u32) -> u32 {

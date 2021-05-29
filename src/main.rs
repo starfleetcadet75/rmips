@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Clap;
 use human_panic::setup_panic;
 use log::LevelFilter;
-use simplelog::{CombinedLogger, TermLogger, TerminalMode, WriteLogger};
+use simplelog::{ColorChoice, CombinedLogger, TermLogger, TerminalMode, WriteLogger};
 
 use rmips::emulator::Emulator;
 use rmips::util::opts::Opts;
@@ -25,7 +25,8 @@ fn setup_logger(opts: &Opts) {
         TermLogger::new(
             log_level,
             simplelog::Config::default(),
-            TerminalMode::Stdout,
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
         ),
         WriteLogger::new(
             LevelFilter::Trace,

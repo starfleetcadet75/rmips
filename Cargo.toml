@@ -13,12 +13,15 @@ categories = ["embedded", "emulators"]
 [dependencies]
 log = "0.4"
 anyhow = "1.0"
-gdbstub = "0.4.3"
+gdbstub = "0.5.0"
+gdbstub_arch = "0.1.0"
 bitflags = "1.2.1"
-capstone = "0.7.0"
-simplelog = "0.8.0"
+capstone = "0.8.0"
+simplelog = "0.10.0"
+bit_field = "0.10.0"
 clap = "3.0.0-beta.1"
 human-panic = "1.0.3"
+numeric-enum-macro = "0.2.0"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"
