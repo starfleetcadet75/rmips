@@ -9,6 +9,12 @@ pub struct IndexRegister {
     pub bits: u32,
 }
 
+impl Default for IndexRegister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IndexRegister {
     /// Returns a new Index register.
     pub fn new() -> Self {

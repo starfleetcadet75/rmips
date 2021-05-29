@@ -11,6 +11,12 @@ pub struct EpcRegister {
     pub address: u32,
 }
 
+impl Default for EpcRegister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EpcRegister {
     /// Returns a new EPC register.
     pub fn new() -> Self {

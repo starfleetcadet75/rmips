@@ -13,6 +13,12 @@ pub struct BadVaddrRegister {
     pub address: u32,
 }
 
+impl Default for BadVaddrRegister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BadVaddrRegister {
     /// Returns a new BadVaddr register.
     pub fn new() -> Self {

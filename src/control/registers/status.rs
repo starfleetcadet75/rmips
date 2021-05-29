@@ -9,6 +9,12 @@ pub struct StatusRegister {
     pub bits: u32,
 }
 
+impl Default for StatusRegister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StatusRegister {
     /// Returns a new Status register
     pub fn new() -> Self {

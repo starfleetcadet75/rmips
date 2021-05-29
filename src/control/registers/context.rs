@@ -9,6 +9,12 @@ pub struct ContextRegister {
     pub bits: u32,
 }
 
+impl Default for ContextRegister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ContextRegister {
     /// Returns a new Context register.
     pub fn new() -> Self {

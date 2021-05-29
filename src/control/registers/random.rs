@@ -14,6 +14,12 @@ pub struct RandomRegister {
     pub bits: u32,
 }
 
+impl Default for RandomRegister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RandomRegister {
     /// Returns a new Random register.
     pub fn new() -> Self {

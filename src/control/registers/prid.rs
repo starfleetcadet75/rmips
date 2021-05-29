@@ -9,6 +9,12 @@ pub struct PridRegister {
     pub bits: u32,
 }
 
+impl Default for PridRegister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PridRegister {
     /// Returns a new PRId register.
     pub fn new() -> Self {

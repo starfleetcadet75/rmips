@@ -13,6 +13,12 @@ pub struct CauseRegister {
     pub bits: u32,
 }
 
+impl Default for CauseRegister {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CauseRegister {
     /// Returns a new Cause register.
     pub fn new() -> Self {
